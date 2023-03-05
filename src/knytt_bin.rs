@@ -13,6 +13,12 @@ pub use error::KnyttBinError;
 const ENTRY_SIGNATURE: [u8; 2] = [b'N', b'F'];
 const MAX_FILE_SIZE: usize = 1024 * 1024 * 128; // 128 MB
 
+/// Unpacks a .knytt.bin file at `bin_path` into the directory at `output_dir`.
+/// 
+/// On success, it returns the number of files unpacked.
+/// 
+/// `output_dir` must already exist. A subdirectory will be created with the
+/// specified by the .knytt.bin file.
 pub fn unpack<P1, P2>(bin_path: P1, output_dir: P2) -> Result<usize>
 where
     P1: AsRef<Path>,
@@ -53,6 +59,12 @@ where
     Ok(unpacked_count)
 }
 
+/// Parses a .knytt.bin entry header from `reader`.
+/// 
+/// The header format is:
+/// - Signature `"NF"` (2 bytes)
+/// - Null-terminated file path (relative to root directory)
+/// - File size (unsigned 32-bit integer)
 fn read_entry_header(reader: &mut BufReader<File>) -> Result<(PathBuf, usize)> {
     // Validate entry signature
     {
@@ -94,6 +106,7 @@ fn read_entry_header(reader: &mut BufReader<File>) -> Result<(PathBuf, usize)> {
     Ok((path, size))
 }
 
+/// Unpacks the next .knytt.bin entry from `reader` into the current working directory.
 fn unpack_next_entry(reader: &mut BufReader<File>, buf: &mut Vec<u8>) -> Result<()> {
     let (path, file_size) = read_entry_header(reader)?;
     
@@ -133,6 +146,7 @@ fn unpack_next_entry(reader: &mut BufReader<File>, buf: &mut Vec<u8>) -> Result<
     Ok(())
 }
 
+/// Packs the files in the directory at `input_dir` into a .knytt.bin and writes it to `bin_path`.
 pub fn pack<P1, P2>(_input_dir: P1, _bin_path: P2)
 where
     P1: AsRef<Path>,
@@ -141,8 +155,10 @@ where
 
 }
 
-/// This is similar to `Read::read_exact` except we can tell how many bytes were
-/// read if it reaches EOF early.
+/// Reads at most `buf.len()` bytes from `reader` into `buf`.
+/// 
+/// The return value is the number of bytes read. This is similar to `Read::read_exact` except
+/// it's possible to tell how many bytes were read if EOF is reached early.
 fn read_at_most(reader: &mut BufReader<File>, buf: &mut [u8]) -> Result<usize> {
     let mut reader = {
         let bytes_expected = buf.len()
@@ -161,6 +177,9 @@ fn read_at_most(reader: &mut BufReader<File>, buf: &mut [u8]) -> Result<usize> {
     Ok(total_bytes_read)
 }
 
+/// Parses a Utf-8 sequence from `reader` up to the first null byte (or EOF).
+/// 
+/// The null byte is consumed but excluded from the returned `String`.
 fn read_null_term_string(reader: &mut BufReader<File>) -> Result<String> {
     let mut buf = vec![];
     reader.read_until(0, &mut buf)?;
