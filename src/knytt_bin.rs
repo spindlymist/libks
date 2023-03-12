@@ -135,9 +135,10 @@ fn unpack_next_entry(reader: &mut BufReader<File>, buf: &mut Vec<u8>) -> Result<
         }
 
         let mut writer = {
-            let mut options = OpenOptions::new();
-            options.write(true).create_new(true);
-            let file = options.open(path)?;
+            let file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(path)?;
             BufWriter::new(file)
         };
         writer.write_all(buf)?;
