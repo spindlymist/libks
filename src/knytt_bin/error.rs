@@ -8,6 +8,8 @@ pub enum KnyttBinError {
     EmptyPath,
     #[error("The path `{0:?}` is not allowed.")]
     IllegalPath(PathBuf),
+    #[error("Failed to get name of file or directory `{0:?}`. (hint: is it root or invalid Utf-8?)")]
+    BadFileName(PathBuf),
     #[error("The file `{path}` is too large: {size} bytes")]
     OversizedFile {
         path: PathBuf,
