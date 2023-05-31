@@ -51,27 +51,15 @@ impl AssetSource {
     }
 
     fn open_path(&self, rel_path: String) -> Option<Result<File>> {
-        if let Some(path) = self.resolve_path(rel_path) {
-            Some(
-                File::open(path)
-                .map_err(|err| err.into())
-            )
-        }
-        else {
-            None
-        }
+        self.resolve_path(rel_path).map(|path|
+            File::open(path).map_err(|err| err.into())
+        )
     }
 
     fn read_path(&self, rel_path: String) -> Option<Result<Vec<u8>>> {
-        if let Some(path) = self.resolve_path(rel_path) {
-            Some(
-                fs::read(path)
-                .map_err(|err| err.into())
-            )
-        }
-        else {
-            None
-        }
+        self.resolve_path(rel_path).map(|path|
+            fs::read(path).map_err(|err| err.into())
+        )
     }
 
     asset_methods!(ambiance_path, ambiance_open, ambiance_read, "Ambiance/Ambi{}.ogg");

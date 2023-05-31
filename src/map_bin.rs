@@ -61,7 +61,7 @@ where
     // Parse screens
     let mut screens = Vec::new();
     let mut buf = Vec::new();
-    while reader.fill_buf()?.len() > 0 {
+    while !reader.fill_buf()?.is_empty() {
         let screen = parse_screen(reader, &mut buf)?;
         screens.push(screen);
         buf.clear();
@@ -91,7 +91,7 @@ where
         }
         buf.pop(); // Discard the null byte
 
-        let position = std::str::from_utf8(&buf)?
+        let position = std::str::from_utf8(buf)?
             .strip_prefix('x')
             .and_then(|rest| rest.split_once('y'));
         
