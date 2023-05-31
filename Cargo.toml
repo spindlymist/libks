@@ -1,9 +1,15 @@
 [package]
 name = "libks"
+authors = ["spindlymist"]
+description = "A library for working with Knytt Stories levels."
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+homepage = "https://github.com/spindlymist/libks/"
+repository = "https://github.com/spindlymist/libks/"
+license = "Apache-2.0"
+readme = "README.md"
+keywords = ["knytt", "stories", "ks"]
+categories = ["parser-implementations"]
 
 [dependencies]
 byteorder = "1.4.3"
