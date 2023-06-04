@@ -24,6 +24,8 @@ pub enum Error {
     KnyttBin(#[from] crate::KnyttBinError),
     #[error(transparent)]
     MapBin(#[from] crate::MapBinError),
+    #[error(transparent)]
+    WorldIni(#[from] crate::WorldIniError),
 }
 
 pub type Result<T> = core::result::Result<T, Error>;
