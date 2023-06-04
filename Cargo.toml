@@ -2,7 +2,7 @@
 name = "libks"
 authors = ["spindlymist"]
 description = "A library for working with Knytt Stories levels."
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 homepage = "https://github.com/spindlymist/libks/"
 repository = "https://github.com/spindlymist/libks/"
