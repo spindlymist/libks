@@ -9,6 +9,6 @@ Knytt Stories is a 2007 platforming game (and storytelling platform) created by 
 - Pack or unpack .knytt.bin files
 - Parse Map.bin data
 - Resolve asset paths
-- Detect and launch KS editions
+- Detect KS executables
 - Guess the best KS edition for a level
 - Load/parse World.ini

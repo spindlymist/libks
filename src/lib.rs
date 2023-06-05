@@ -8,7 +8,7 @@ pub use map_bin::MapBinError;
 
 pub mod assets;
 
-pub mod launch;
+pub mod editions;
 
 pub mod world_ini;
 pub use world_ini::WorldIniError;
