@@ -15,4 +15,8 @@ categories = ["parser-implementations"]
 byteorder = "1.4.3"
 flate2 = "1.0.25"
 rust-ini = "0.19.0"
+serde = { version = "1.0.163", features = ["serde_derive"], optional = true }
 thiserror = "1.0.38"
+
+[features]
+serde = ["dep:serde"]
