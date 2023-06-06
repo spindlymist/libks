@@ -15,11 +15,11 @@ const MAX_FILE_SIZE: usize = 1024 * 1024 * 128; // 128 MB
 
 /// Unpacks a .knytt.bin file at `bin_path` into the directory at `output_dir`.
 /// 
-/// On success, it returns the number of files unpacked.
+/// On success, it returns the subdirectory the files were unpacked into.
 /// 
 /// `output_dir` must already exist. A subdirectory will be created with the
 /// specified by the .knytt.bin file.
-pub fn unpack<P1, P2>(bin_path: P1, output_dir: P2) -> Result<usize>
+pub fn unpack<P1, P2>(bin_path: P1, output_dir: P2) -> Result<PathBuf>
 where
     P1: AsRef<Path>,
     P2: AsRef<Path>
@@ -35,28 +35,24 @@ where
     let (dir_name, _) = read_entry_header(&mut reader)?;
 
     // Create the world directory and cd into it temporarily
+    let dir_path = output_dir.as_ref().join(dir_name);
+    fs::create_dir(&dir_path)?;
     let prev_wd = {
-        let dir_path = output_dir.as_ref().join(dir_name);
-        fs::create_dir(&dir_path)?;
-        
         let prev_wd = env::current_dir()?;
-        env::set_current_dir(dir_path)?;
-
+        env::set_current_dir(&dir_path)?;
         prev_wd
     };
 
     // Unpack the contents
-    let mut unpacked_count = 0;
     let mut buf = vec![];
     while !reader.fill_buf()?.is_empty() {
         unpack_next_entry(&mut reader, &mut buf)?;
-        unpacked_count += 1;
     }
 
     // Restore working directory
     env::set_current_dir(prev_wd)?;
 
-    Ok(unpacked_count)
+    Ok(dir_path)
 }
 
 /// Parses a .knytt.bin entry header from `reader`.
