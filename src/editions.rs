@@ -28,7 +28,11 @@ impl Default for KsEdition {
 /// 
 /// In particular, the directory must contain a Worlds folder, a Data folder, and one or more
 /// KS executables.
-pub fn is_ks_dir(path: &Path) -> bool {
+pub fn is_ks_dir<P>(path: P) -> bool
+where
+    P: AsRef<Path>
+{
+    let path = path.as_ref();
     path.is_dir()
         && path.join("Worlds").exists()
         && path.join("Data").exists()
@@ -36,7 +40,10 @@ pub fn is_ks_dir(path: &Path) -> bool {
 }
 
 /// Determines which KS executables are present in `ks_dir`.
-pub fn list_executables(ks_dir: &Path) -> Vec<KsExecutable> {
+pub fn list_executables<P>(ks_dir: P) -> Vec<KsExecutable>
+where
+    P: AsRef<Path>
+{
     use KsEdition::*;
     let mut exes = Vec::new();
 
@@ -47,7 +54,7 @@ pub fn list_executables(ks_dir: &Path) -> Vec<KsExecutable> {
         (Extended, "Knytt Stories Ex.exe"),
         (Advanced, "KSAdvanced.exe"),
     ] {
-        let path = ks_dir.join(exe_name);
+        let path = ks_dir.as_ref().join(exe_name);
         if path.exists() {
             exes.push(KsExecutable {
                 edition,
@@ -63,20 +70,28 @@ pub fn list_executables(ks_dir: &Path) -> Vec<KsExecutable> {
 /// vanilla.
 /// 
 /// The heuristic is not comprehensive and this function cannot currently detect KS Advanced levels.
-pub fn guess_edition(world_dir: &Path) -> Result<KsEdition> {
+pub fn guess_edition<P>(world_dir: P) -> Result<KsEdition>
+where
+    P: AsRef<Path>
+{
     use KsEdition::*;
 
+    let world_dir = world_dir.as_ref();
     let world_ini = crate::world_ini::load_ini(world_dir)?;
-    if world_ini.section(Some("World"))
+    let format =
+        world_ini
+        .section(Some("World"))
         .and_then(|section| section.get("Format"))
-        == Some("4")
-    {
+        .unwrap_or("");
+
+    if format == "4" {
         return Ok(Plus);
     }
 
-    if world_dir.join("Script.lua").exists()
+    if format == "3"
         || world_ini.section(Some("KS Ex")).is_some()
         || world_ini.section(Some("Templates")).is_some()
+        || world_dir.join("Script.lua").exists()
     {
         return Ok(Extended);
     }
