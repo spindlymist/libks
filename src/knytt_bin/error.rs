@@ -20,5 +20,7 @@ pub enum KnyttBinError {
         path: PathBuf,
         file_size: usize,
         bytes_read: usize,
-    }
+    },
+    #[error("The file or directory `{0}` could not be overwritten.")]
+    UnauthorizedOverwrite(PathBuf),
 }

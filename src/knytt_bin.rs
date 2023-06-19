@@ -19,7 +19,7 @@ const MAX_FILE_SIZE: usize = 1024 * 1024 * 128; // 128 MB
 /// 
 /// `output_dir` must already exist. A subdirectory will be created with the
 /// specified by the .knytt.bin file.
-pub fn unpack<P1, P2>(bin_path: P1, output_dir: P2) -> Result<PathBuf>
+pub fn unpack<P1, P2>(bin_path: P1, output_dir: P2, allow_overwrite: bool) -> Result<PathBuf>
 where
     P1: AsRef<Path>,
     P2: AsRef<Path>
@@ -34,9 +34,19 @@ where
     // depending on some arcane rules in the original packer implementation, rendering it useless.
     let (dir_name, _) = read_entry_header(&mut reader)?;
 
-    // Create the world directory and cd into it temporarily
+    // Create the world directory
     let dir_path = output_dir.as_ref().join(dir_name);
+    if dir_path.exists() {
+        if allow_overwrite {
+            fs::remove_dir_all(&dir_path)?;
+        }
+        else {
+            return Err(KnyttBinError::UnauthorizedOverwrite(dir_path).into());
+        }
+    }
     fs::create_dir(&dir_path)?;
+
+    // cd into the world directory temporarily
     let prev_wd = {
         let prev_wd = env::current_dir()?;
         env::set_current_dir(&dir_path)?;
