@@ -3,7 +3,7 @@ use std::{path::{Path, PathBuf}};
 use crate::Result;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum KsEdition {
     Vanilla,
     Plus,
@@ -12,6 +12,7 @@ pub enum KsEdition {
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct KsExecutable {
     pub edition: KsEdition,
     pub path: PathBuf,
