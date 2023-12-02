@@ -1,6 +1,6 @@
-use std::{io::{self, prelude::*, BufReader}, path::Path};
+use std::{io::{self, prelude::*, BufReader, BufWriter}, path::Path, fs::OpenOptions};
 use byteorder::ReadBytesExt;
-use flate2::read::GzDecoder;
+use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 
 use crate::{Result, constants::*, error::Error};
 
@@ -225,6 +225,53 @@ where
     }
 
     Ok(LayerData(tiles))
+}
+
+pub fn write_map_file<P>(path: P, screens: &Vec<ScreenData>) -> Result<()>
+where
+    P: AsRef<Path>
+{
+    let file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open(path)?;
+    let writer = BufWriter::new(file);
+    let mut encoder = GzEncoder::new(writer, Compression::default());
+
+    let mut screen_buffer: [u8; 3006] = [0; 3006];
+    for screen in screens {
+        let mut i = 0;
+
+        for layer_index in 0..4 {
+            for tile in &screen.layers[layer_index].0 {
+                screen_buffer[i] = tile.1 | (tile.0 * 0x80);
+                i += 1;
+            }
+        }
+        
+        for layer_index in 4..8 {
+            for tile in &screen.layers[layer_index].0 {
+                screen_buffer[i] = tile.1;
+                screen_buffer[i + 250] = tile.0;
+                i += 1;
+            }
+            i += 250;
+        }
+
+        screen_buffer[i + 0] = screen.assets.tileset_a;
+        screen_buffer[i + 1] = screen.assets.tileset_b;
+        screen_buffer[i + 2] = screen.assets.ambiance_a;
+        screen_buffer[i + 3] = screen.assets.ambiance_b;
+        screen_buffer[i + 4] = screen.assets.music;
+        screen_buffer[i + 5] = screen.assets.gradient;
+        
+        encoder.write_all(&format!("x{}y{}\0", screen.position.0, screen.position.1).into_bytes())?;
+        encoder.write_all(&SCREEN_SIGNATURE)?;
+        encoder.write_all(&screen_buffer)?;
+        encoder.flush()?;
+    }
+
+    Ok(())
 }
 
 /// Consumes bytes from `reader` up to and including a delimiter byte.
