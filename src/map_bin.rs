@@ -19,9 +19,9 @@ pub type AssetId = u8;
 pub struct AssetIds {
     pub tileset_a: AssetId,
     pub tileset_b: AssetId,
-    pub music: AssetId,
     pub ambiance_a: AssetId,
     pub ambiance_b: AssetId,
+    pub music: AssetId,
     pub gradient: AssetId,
 }
 
@@ -168,9 +168,9 @@ where
     Ok(AssetIds {
         tileset_a: reader.read_u8()?,
         tileset_b: reader.read_u8()?,
-        music: reader.read_u8()?,
         ambiance_a: reader.read_u8()?,
         ambiance_b: reader.read_u8()?,
+        music: reader.read_u8()?,
         gradient: reader.read_u8()?,
     })
 }
