@@ -7,6 +7,7 @@ use crate::{Result, constants::*, error::Error};
 mod error;
 pub use error::MapBinError;
 
+#[derive(Debug, Clone)]
 pub struct ScreenData {
     pub position: (i64, i64),
     pub layers: [LayerData; LAYER_COUNT],
@@ -14,6 +15,7 @@ pub struct ScreenData {
 }
 
 pub type AssetId = u8;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AssetIds {
     pub tileset_a: AssetId,
     pub tileset_b: AssetId,
@@ -23,8 +25,10 @@ pub struct AssetIds {
     pub gradient: AssetId,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Tile(pub u8, pub u8);
 
+#[derive(Debug, Clone)]
 pub struct LayerData(pub [Tile; TILES_PER_LAYER]);
 
 /// Parses all screens from the Map.bin data stored at `path`. The data is assumed to be gzipped.
