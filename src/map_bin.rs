@@ -227,6 +227,7 @@ where
     Ok(LayerData(tiles))
 }
 
+/// Compresses and writes the data in `screens` to the file at `path`.
 pub fn write_map_file<P>(path: P, screens: &Vec<ScreenData>) -> Result<()>
 where
     P: AsRef<Path>
