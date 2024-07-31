@@ -7,6 +7,9 @@ use crate::Result;
 mod error;
 pub use error::WorldIniError;
 
+pub mod parse;
+pub mod model;
+
 /// Attempts to read and parse the World.ini for the level in `world_dir`.
 pub fn load_ini(world_dir: &Path) -> Result<Ini> {
     let ini_path = world_dir.join("World.ini");
