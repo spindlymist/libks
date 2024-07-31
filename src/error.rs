@@ -26,6 +26,9 @@ pub enum KsError {
     MapBin(#[from] crate::MapBinError),
     #[error(transparent)]
     WorldIni(#[from] crate::WorldIniError),
+    #[cfg(feature="image")]
+    #[error(transparent)]
+    Draw(#[from] crate::DrawError),
 }
 
 pub type Result<T> = core::result::Result<T, KsError>;
