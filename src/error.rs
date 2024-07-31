@@ -1,5 +1,5 @@
 #[derive(thiserror::Error, Debug)]
-pub enum Error {
+pub enum KsError {
     #[error("An IO error occurred: `{source}`")]
     Io {
         #[from]
@@ -28,4 +28,4 @@ pub enum Error {
     WorldIni(#[from] crate::WorldIniError),
 }
 
-pub type Result<T> = core::result::Result<T, Error>;
+pub type Result<T> = core::result::Result<T, KsError>;

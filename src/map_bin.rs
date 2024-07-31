@@ -2,7 +2,7 @@ use std::{io::{self, prelude::*, BufReader, BufWriter}, path::Path, fs::OpenOpti
 use byteorder::ReadBytesExt;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 
-use crate::{Result, constants::*, error::Error};
+use crate::{Result, constants::*, error::KsError};
 
 mod error;
 pub use error::MapBinError;
@@ -142,8 +142,8 @@ where
 }
 
 /// Converts an `UnexpectedEof` error to `MapBinError::MissingData`.
-fn make_missing_data_error(err: Error, position: (i64, i64)) -> Error {
-    if let Error::Io { source, .. } = &err {
+fn make_missing_data_error(err: KsError, position: (i64, i64)) -> KsError {
+    if let KsError::Io { source, .. } = &err {
         if source.kind() == io::ErrorKind::UnexpectedEof {
             return MapBinError::MissingData { position }.into();
         }
