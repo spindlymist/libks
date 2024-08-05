@@ -5,6 +5,7 @@ use std::{
 
 use crate::{
     item::Item,
+    parse::Parser,
     section::{
         Section,
         VirtualSection as VSection,
@@ -25,11 +26,10 @@ impl Ini {
         let mut global_section = Section::new_global(Rc::clone(&source));
         let mut sections = Vec::new();
 
-        for item in crate::parse::Parser::new(&source).map(Item::from) {
+        for item in Parser::new(&source).map(Item::from) {
             match item {
-                Item::Section(key, padding) => {
-                    let header = Item::Section(key, padding);
-                    let section = Section::new(Rc::clone(&source), header);
+                Item::Section(..) => {
+                    let section = Section::new(Rc::clone(&source), item);
                     sections.push(section);
                 },
                 _ => match sections.last_mut() {

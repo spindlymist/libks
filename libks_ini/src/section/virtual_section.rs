@@ -58,7 +58,7 @@ impl<'a> VirtualSectionMut<'a> {
     pub fn set(&mut self, key: &str, mut value: String) {
         for section in self.sections.iter_mut().skip(1).rev() {
             match section.replace(key, value) {
-                Some(value2) => value = value2,
+                Some(value_temp) => value = value_temp,
                 None => return,
             }
         }

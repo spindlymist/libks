@@ -15,10 +15,13 @@ pub struct ConcreteSection {
 
 impl ConcreteSection {
     pub(crate) fn new(source: Rc<str>, header: Item) -> Self {
-        let items = match header {
-            Item::Section(..) => vec![header],
-            _ => panic!("Section header item must be Section variant"),
-        };
+        if !matches!(header, Item::Section(..)) {
+            panic!("Section header item must be Section variant");
+        }
+
+        let mut items = Vec::with_capacity(10);
+        items.push(header);
+        
         Self { source, items }
     }
 
