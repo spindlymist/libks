@@ -1,0 +1,39 @@
+World.ini format specification
+
+General
+- Encoding is Windows-1252.
+
+Sections
+- Sections are created by wrapping a key in square brackets.
+- Example: [Section Key]
+- Section keys may contain spaces.
+- Section keys are case insensitive.
+- The empty section key [] is valid.
+- Whitespace surrounding the square brackets is ignored.
+- Whitespace inside the square brackets is NOT ignored.
+- No characters, except for whitespace, are allowed after the closing bracket.
+- If sections are repeated, even if they differ in case, their properties are merged. Properties in later
+    sections overwrite take precedence.
+- Malformed section headers, such as `[Section` or `[Section Key] abcd` are ignored, causing any properties
+    which follow to become part of the previous section
+
+Properties
+- Properties consist of a key and a value separated by an equal sign (=)
+- Example: Property Key=Property Value
+- Both keys and values may contain spaces
+- Property keys are case insensitive.
+- Property values are generally case insensitive, with obvious exceptions such as level name, signs, etc.
+- The KS+ editor recognizes the empty property key. It's unclear whether KS itself does, but it makes no difference.
+- Property values may be empty.
+- Whitespace surrounding the property key is ignored
+- Whitespace surrounding the property value is ignored
+- If a property key is repeated, the last value takes precedence
+
+Comments
+- Comments are written by starting a line with a semicolon (;).
+- Example: ;This is a comment
+- The KS+ editor treats lines starting with a hash (#) as comments. It's unclear whether KS itself does, but
+    it makes no practical difference (see below).
+- Inline comments are not supported.
+- Any line which is not a section header, property definition, or comment is completely ignored. Effectively,
+    this means comments can be written in any manner one chooses.

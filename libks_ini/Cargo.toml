@@ -1,0 +1,12 @@
+[package]
+name = "libks_ini"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+memchr = "2.7.4"
+ouroboros = "0.18.4"
+self_cell = "1.0.4"
+
+[dev-dependencies]
+const-str = "0.5.7"
