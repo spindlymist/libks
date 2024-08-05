@@ -1,8 +1,11 @@
 use std::rc::Rc;
 
-use crate::{item::{
-    Item, ItemsIteratorExt, Padding4, Prop
-}, span::Span};
+use crate::item::{
+    Item,
+    ItemsIteratorExt,
+    Padding4,
+    Prop,
+};
 
 #[derive(Debug, Clone)]
 pub struct ConcreteSection {
@@ -11,26 +14,19 @@ pub struct ConcreteSection {
 }
 
 impl ConcreteSection {
-    pub fn new(source: Rc<str>, header: Item) -> Self {
+    pub(crate) fn new(source: Rc<str>, header: Item) -> Self {
         let items = match header {
             Item::Section(..) => vec![header],
             _ => panic!("Section header item must be Section variant"),
         };
-
-        Self {
-            source,
-            items,
-        }
+        Self { source, items }
     }
 
-    pub fn new_global(source: Rc<str>) -> Self {
-        Self {
-            source,
-            items: Vec::new(),
-        }
+    pub(crate) fn new_global(source: Rc<str>) -> Self {
+        Self { source, items: Vec::new() }
     }
 
-    pub fn push_item(&mut self, item: Item) {
+    pub(crate) fn push_item(&mut self, item: Item) {
         self.items.push(item);
     }
 
@@ -41,16 +37,6 @@ impl ConcreteSection {
         match &self.items[0] {
             Item::Section(key, _) => key.of(&self.source),
             _ => panic!("ConcreteSection::key cannot be called on the global section"),
-        }
-    }
-
-    /// # Panics
-    /// 
-    /// This method panics if called on the global section.
-    pub fn key_span(&self) -> &Span {
-        match &self.items[0] {
-            Item::Section(key, _) => key,
-            _ => panic!("ConcreteSection::key_span cannot be called on the global section"),
         }
     }
 
@@ -93,11 +79,6 @@ impl ConcreteSection {
     pub fn get(&self, key: &str) -> Option<&str> {
         self.find_prop(key)
             .map(|prop| prop.value.of(&self.source))
-    }
-
-    pub fn get_span(&self, key: &str) -> Option<&Span> {
-        self.find_prop(key)
-            .map(|prop| &prop.value)
     }
 
     pub fn set(&mut self, key: &str, value: String) {
