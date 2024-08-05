@@ -1,3 +1,5 @@
+use std::cmp::min;
+
 use memchr::{memchr2, memchr3};
 
 use super::trim::trimmed_range;
@@ -8,7 +10,19 @@ pub struct Line {
     pub end_trimmed: usize,
     pub eq: Option<usize>,
     pub end: usize,
-    pub start_next: Option<usize>,
+    pub start_next: usize,
+}
+
+impl Line {
+    pub fn offset(self, offset: usize) -> Line {
+        Line {
+            start_trimmed: self.start_trimmed + offset,
+            end_trimmed: self.end_trimmed + offset,
+            eq: self.eq.map(|eq| eq + offset),
+            end: self.end + offset,
+            start_next: self.start_next + offset,
+        }
+    }
 }
 
 pub fn next_line(s: &str) -> Option<Line> {
@@ -34,20 +48,13 @@ pub fn next_line(s: &str) -> Option<Line> {
 
     let start_next =
         if line_ending == Some(b'\r')
-            && end < s.len() - 1
+            && end + 1 < s.len()
             && s.as_bytes()[end + 1] == b'\n'
         {
-            end + 2
+            min(end + 2, s.len())
         }
         else {
-            end + 1
-        };
-    let start_next =
-        if start_next >= s.len() {
-            None
-        }
-        else {
-            Some(start_next)
+            min(end + 1, s.len())
         };
 
     let (start_trimmed, end_trimmed) = trimmed_range(&s[..end]);
@@ -74,7 +81,7 @@ mod tests {
             end_trimmed: 11,
             eq: None,
             end: 11,
-            start_next: Some(13),
+            start_next: 13,
         }));
     }
 
@@ -86,7 +93,7 @@ mod tests {
             end_trimmed: 11,
             eq: None,
             end: 11,
-            start_next: Some(13),
+            start_next: 13,
         }));
     }
 
@@ -98,7 +105,7 @@ mod tests {
             end_trimmed: 11,
             eq: None,
             end: 11,
-            start_next: Some(13),
+            start_next: 13,
         }));
     }
 
@@ -110,7 +117,7 @@ mod tests {
             end_trimmed: 11,
             eq: None,
             end: 11,
-            start_next: None,
+            start_next: s.len(),
         }));
     }
 
@@ -122,7 +129,7 @@ mod tests {
             end_trimmed: 11,
             eq: None,
             end: 11,
-            start_next: None,
+            start_next: s.len(),
         }));
     }
 
@@ -134,7 +141,7 @@ mod tests {
             end_trimmed: 15,
             eq: None,
             end: 19,
-            start_next: Some(20),
+            start_next: 20,
         }));
     }
 
@@ -146,7 +153,7 @@ mod tests {
             end_trimmed: 13,
             eq: Some(6),
             end: 13,
-            start_next: Some(14),
+            start_next: 14,
         }));
     }
 }

@@ -1,11 +1,11 @@
 use std::{
     cell::{Ref, RefCell},
-    collections::{HashMap, hash_map::Entry::*},
+    collections::{hash_map::Entry::*, HashMap},
     rc::Rc,
 };
 
 use crate::{
-    item::{Item, Padding},
+    item::Item,
     section::{ConcreteSection, VirtualSection},
 };
 
@@ -15,25 +15,27 @@ macro_rules! make_ptr {
     };
 }
 
-pub struct Ini<'a> {
-    global_section: ConcreteSection<'a>,
-    sections: Vec<Rc<RefCell<ConcreteSection<'a>>>>,
-    virtual_sections: HashMap<String, VirtualSection<'a>>,
+pub struct Ini {
+    source: Rc<str>,
+    global_section: ConcreteSection,
+    sections: Vec<Rc<RefCell<ConcreteSection>>>,
+    virtual_sections: HashMap<String, VirtualSection>,
 }
 
-impl<'a> Ini<'a> {
-    pub fn new(text: &'a str) -> Self {
+impl Ini {
+    pub fn new(source: &str) -> Self {
+        let source = Rc::<str>::from(source);
         let mut sections = Vec::new();
-        let mut virtual_sections = HashMap::<_, VirtualSection<'_>>::new();
-        let mut global_section = ConcreteSection::new_global();
-        let mut current_section: Option<Rc<RefCell<ConcreteSection<'_>>>> = None;
+        let mut virtual_sections = HashMap::<_, VirtualSection>::new();
+        let mut global_section = ConcreteSection::new_global(Rc::clone(&source));
+        let mut current_section: Option<Rc<RefCell<ConcreteSection>>> = None;
 
-        for item in crate::parse::Parser::new(text).map(Item::from) {
+        for item in crate::parse::Parser::new(&source).map(Item::from) {
             match item {
-                Item::Section(s, padding) => {
-                    let lower_key = s.to_ascii_lowercase();
-                    let header = Item::Section(s, padding);
-                    let section = make_ptr![ConcreteSection::new(header)];
+                Item::Section(key, padding) => {
+                    let lower_key = key.of(&source).to_ascii_lowercase();
+                    let header = Item::Section(key, padding);
+                    let section = make_ptr![ConcreteSection::new(Rc::clone(&source), header)];
                     sections.push(Rc::clone(&section));
                     
                     match virtual_sections.entry(lower_key) {
@@ -55,27 +57,32 @@ impl<'a> Ini<'a> {
             }
         }
 
-        Self { global_section, sections, virtual_sections }
+        Self {
+            source,
+            global_section,
+            sections,
+            virtual_sections,
+        }
     }
 
     pub fn has_section(&self, key: &str) -> bool {
         self.virtual_sections.contains_key(&key.to_ascii_lowercase())
     }
 
-    pub fn get_section(&self, key: &str) -> Option<&VirtualSection<'a>> {
+    pub fn get_section(&self, key: &str) -> Option<&VirtualSection> {
         self.virtual_sections.get(&key.to_ascii_lowercase())
     }
 
-    pub fn get_section_mut(&mut self, key: &str) -> Option<&mut VirtualSection<'a>> {
+    pub fn get_section_mut(&mut self, key: &str) -> Option<&mut VirtualSection> {
         self.virtual_sections.get_mut(&key.to_ascii_lowercase())
     }
 
-    pub fn append_section(&mut self, key: &str) -> &mut VirtualSection<'a> {
+    pub fn append_section(&mut self, key: &str) -> &mut VirtualSection {
         match self.virtual_sections.entry(key.to_ascii_lowercase()) {
             Occupied(entry) => entry.into_mut(),
             Vacant(entry) => {
-                let header = Item::Section(key.to_owned().into(), Padding("", ""));
-                let section = make_ptr![ConcreteSection::new(header)];
+                let header = Item::Section(key.to_owned().into(), ("", "\n").into());
+                let section = make_ptr![ConcreteSection::new(Rc::clone(&self.source), header)];
                 let v_section = VirtualSection::new(Rc::clone(&section));
                 self.sections.push(section);
                 entry.insert(v_section)
@@ -84,7 +91,7 @@ impl<'a> Ini<'a> {
     }
 
     pub fn remove_section(&mut self, key: &str) {
-        if !self.virtual_sections.remove(key).is_none() {
+        if self.virtual_sections.remove(key).is_some() {
             self.sections = self.sections.iter()
                 .filter(|section| section.borrow().key() != key)
                 .cloned()
@@ -108,28 +115,28 @@ impl<'a> Ini<'a> {
 
     pub fn get_from_section(&self, section_key: &str, prop_key: &str) -> Option<Ref<str>> {
         self.get_section(section_key)
-            .map_or(None, |section| section.get(prop_key))
+            .and_then(|section| section.get(prop_key))
     }
 
-    pub fn set_in_section(&'a mut self, section_key: &str, prop_key: &str, value: String) {
+    pub fn set_in_section(&mut self, section_key: &str, prop_key: &str, value: String) {
         let section = self.append_section(section_key);
         section.set(prop_key, value);
     }
 
-    pub fn remove_from_section(&'a mut self, section_key: &str, prop_key: &str) {
+    pub fn remove_from_section(&mut self, section_key: &str, prop_key: &str) {
         if let Some(section) = self.get_section_mut(section_key) {
             section.remove(prop_key);
         }
     }
 
-    pub fn rename_in_section(&'a mut self, section_key: &str, from_key: &str, to_key: &str) {
+    pub fn rename_in_section(&mut self, section_key: &str, from_key: &str, to_key: &str) {
         if let Some(section) = self.get_section_mut(section_key) {
             section.rename(from_key, to_key);
         }
     }
 }
 
-impl<'a> std::fmt::Display for Ini<'a> {
+impl std::fmt::Display for Ini {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.global_section.to_string())?;
         for section in &self.sections {

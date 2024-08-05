@@ -6,15 +6,19 @@ use std::{
 use super::ConcreteSection;
 
 #[derive(Debug, Default)]
-pub struct VirtualSection<'a> {
-    sections: Vec<Rc<RefCell<ConcreteSection<'a>>>>,
+pub struct VirtualSection {
+    sections: Vec<Rc<RefCell<ConcreteSection>>>,
 }
 
-impl<'a> VirtualSection<'a> {
-    pub fn new(first: Rc<RefCell<ConcreteSection<'a>>>) -> Self {
+impl VirtualSection {
+    pub fn new(first_section: Rc<RefCell<ConcreteSection>>) -> Self {
         Self {
-            sections: vec![first],
+            sections: vec![first_section],
         }
+    }
+
+    pub fn push_section(&mut self, section: Rc<RefCell<ConcreteSection>>) {
+        self.sections.push(section);
     }
 
     pub fn key(&self) -> Ref<str> {
@@ -25,10 +29,6 @@ impl<'a> VirtualSection<'a> {
         for section in &mut self.sections {
             section.borrow_mut().set_key(to_key);
         }
-    }
-
-    pub fn push_section(&mut self, section: Rc<RefCell<ConcreteSection<'a>>>) {
-        self.sections.push(section);
     }
 
     pub fn has(&self, key: &str) -> bool {

@@ -1,49 +1,73 @@
-use crate::{
-    item::{Item, Prop, Padding4},
-    Cows
-};
+use std::rc::Rc;
 
-#[derive(Debug, Clone, Default)]
-pub struct ConcreteSection<'a> {
-    items: Vec<Item<'a>>,
+use crate::{item::{
+    Item, ItemsIteratorExt, Padding4, Prop
+}, span::Span};
+
+#[derive(Debug, Clone)]
+pub struct ConcreteSection {
+    source: Rc<str>,
+    items: Vec<Item>,
 }
 
-impl<'a> ConcreteSection<'a> {
-    pub fn new(header: Item<'a>) -> Self {
+impl ConcreteSection {
+    pub fn new(source: Rc<str>, header: Item) -> Self {
         let items = match header {
-            Item::Section(_, _) => vec![header],
+            Item::Section(..) => vec![header],
             _ => panic!("Section header item must be Section variant"),
         };
 
-        Self { items }
-    }
-
-    pub fn new_global() -> Self {
-        Self { items: Vec::new() }
-    }
-
-    pub fn key(&self) -> &str {
-        match &self.items[0] {
-            Item::Section(key, _) => key,
-            _ => unreachable!(),
+        Self {
+            source,
+            items,
         }
     }
 
-    pub fn set_key(&mut self, to_key: &str) {
-        match &mut self.items[0] {
-            Item::Section(key, _) => *key = to_key.to_owned().into(),
-            _ => unreachable!(),
+    pub fn new_global(source: Rc<str>) -> Self {
+        Self {
+            source,
+            items: Vec::new(),
         }
     }
 
-    pub fn push_item(&mut self, item: Item<'a>) {
+    pub fn push_item(&mut self, item: Item) {
         self.items.push(item);
     }
 
-    fn find_prop(&self, key: &str) -> Option<&Prop<'a>> {
+    /// # Panics
+    /// 
+    /// This method panics if called on the global section.
+    pub fn key(&self) -> &str {
+        match &self.items[0] {
+            Item::Section(key, _) => key.of(&self.source),
+            _ => panic!("ConcreteSection::key cannot be called on the global section"),
+        }
+    }
+
+    /// # Panics
+    /// 
+    /// This method panics if called on the global section.
+    pub fn key_span(&self) -> &Span {
+        match &self.items[0] {
+            Item::Section(key, _) => key,
+            _ => panic!("ConcreteSection::key_span cannot be called on the global section"),
+        }
+    }
+
+    /// # Panics
+    /// 
+    /// This method panics if called on the global section.
+    pub fn set_key(&mut self, to_key: &str) {
+        match &mut self.items[0] {
+            Item::Section(key, _) => *key = to_key.into(),
+            _ => panic!("ConcreteSection::set_key cannot be called on the global section"),
+        }
+    }
+
+    fn find_prop(&self, key: &str) -> Option<&Prop> {
         for item in self.items.iter().rev() {
             if let Item::Property(prop, _) = item {
-                if prop.key.eq_ignore_ascii_case(key) {
+                if prop.key.of(&self.source).eq_ignore_ascii_case(key) {
                     return Some(prop);
                 }
             }
@@ -51,10 +75,10 @@ impl<'a> ConcreteSection<'a> {
         None
     }
 
-    fn find_prop_mut(&mut self, key: &str) -> Option<&mut Prop<'a>> {
+    fn find_prop_mut(&mut self, key: &str) -> Option<&mut Prop> {
         for item in self.items.iter_mut().rev() {
             if let Item::Property(prop, _) = item {
-                if prop.key.eq_ignore_ascii_case(key) {
+                if prop.key.of(&self.source).eq_ignore_ascii_case(key) {
                     return Some(prop);
                 }
             }
@@ -68,7 +92,12 @@ impl<'a> ConcreteSection<'a> {
 
     pub fn get(&self, key: &str) -> Option<&str> {
         self.find_prop(key)
-            .map(|prop| prop.value.as_ref())
+            .map(|prop| prop.value.of(&self.source))
+    }
+
+    pub fn get_span(&self, key: &str) -> Option<&Span> {
+        self.find_prop(key)
+            .map(|prop| &prop.value)
     }
 
     pub fn set(&mut self, key: &str, value: String) {
@@ -76,10 +105,10 @@ impl<'a> ConcreteSection<'a> {
             kvp.value = value.into();
         }
         else {
-            let item = Item::Property(Prop {
-                key: key.to_owned().into(),
-                value: value.into(),
-            }, Padding4("", "", "", ""));
+            let item = Item::Property(
+                Prop::from((key, value)),
+                Padding4::from(("", "", "", "\n")),
+            );
             self.items.push(item);
         }
     }
@@ -97,7 +126,7 @@ impl<'a> ConcreteSection<'a> {
     pub fn remove(&mut self, key: &str) {
         self.items = self.items.iter()
             .filter(|item| match item {
-                Item::Property(prop, _) => prop.key.eq_ignore_ascii_case(key),
+                Item::Property(prop, _) => prop.key.of(&self.source).eq_ignore_ascii_case(key),
                 _ => true,
             })
             .cloned()
@@ -108,8 +137,8 @@ impl<'a> ConcreteSection<'a> {
         self.remove(to_key);
         for item in &mut self.items {
             match item {
-                Item::Property(prop, _) if prop.key.eq_ignore_ascii_case(from_key) => {
-                    prop.key = Cows::from(to_key.to_owned());
+                Item::Property(prop, _) if prop.key.of(&self.source).eq_ignore_ascii_case(from_key) => {
+                    prop.key = to_key.into();
                 }
                 _ => (),
             }
@@ -117,11 +146,11 @@ impl<'a> ConcreteSection<'a> {
     }
 }
 
-impl<'a> std::fmt::Display for ConcreteSection<'a> {
+impl std::fmt::Display for ConcreteSection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for item in &self.items {
-            f.write_str(&item.to_string())?;
-        }
-        Ok(())
+        let output = self.items.iter()
+            .with_source(&self.source)
+            .collect::<String>();
+        f.write_str(&output)
     }
 }
