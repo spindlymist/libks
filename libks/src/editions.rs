@@ -1,4 +1,4 @@
-use std::{path::{Path, PathBuf}};
+use std::path::{Path, PathBuf};
 
 use crate::Result;
 
@@ -78,10 +78,7 @@ where
 
     let world_dir = world_dir.as_ref();
     let world_ini = crate::world_ini::load_ini(world_dir)?;
-    let format =
-        world_ini
-        .section(Some("World"))
-        .and_then(|section| section.get("Format"))
+    let format = world_ini.get_in("World", "Format")
         .unwrap_or("");
 
     if format == "4" {
@@ -89,8 +86,8 @@ where
     }
 
     if format == "3"
-        || world_ini.section(Some("KS Ex")).is_some()
-        || world_ini.section(Some("Templates")).is_some()
+        || world_ini.has_section("KS Ex")
+        || world_ini.has_section("Templates")
         || world_dir.join("Script.lua").exists()
     {
         return Ok(Extended);

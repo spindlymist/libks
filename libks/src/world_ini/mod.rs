@@ -1,6 +1,6 @@
 use std::{fs, path::Path};
 
-use ini::Ini;
+use libks_ini::Ini;
 
 use crate::Result;
 
@@ -23,11 +23,5 @@ pub fn load_ini(world_dir: &Path) -> Result<Ini> {
         contents.to_string()
     };
 
-    match Ini::load_from_str(&ini_contents) {
-        Ok(ini) => Ok(ini),
-        Err(source) => Err(WorldIniError::BadWorldIni {
-            source,
-            path: ini_path,
-        }.into()),
-    }
+    Ok(Ini::new(&ini_contents))
 }
