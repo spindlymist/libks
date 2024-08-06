@@ -23,8 +23,8 @@ pub struct Prop {
 
 #[derive(Debug, Clone, Copy, Eq)]
 pub struct SourcedItem<'a> {
-    source: &'a str,
-    item: &'a Item,
+    pub source: &'a str,
+    pub item: &'a Item,
 }
 
 impl Item {

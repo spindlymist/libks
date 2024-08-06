@@ -8,8 +8,8 @@ use crate::{
     parse::Parser,
     section::{
         Section,
-        VirtualSection as VSection,
-        VirtualSectionMut as VSectionMut,
+        VirtualSection,
+        VirtualSectionMut,
     },
 };
 
@@ -62,32 +62,32 @@ impl Ini {
         index
     }
 
-    fn v_section<'a>(&'a self, indices: &[usize]) -> VSection<'a> {
+    fn v_section<'a>(&'a self, indices: &[usize]) -> VirtualSection<'a> {
         let sections = borrow_indices(&self.sections, indices);
-        VSection::new(sections)
+        VirtualSection::new(sections)
     }
 
-    fn v_section_mut<'a>(&'a mut self, indices: &[usize]) -> VSectionMut<'a> {
+    fn v_section_mut<'a>(&'a mut self, indices: &[usize]) -> VirtualSectionMut<'a> {
         let sections = borrow_indices_mut(&mut self.sections, indices);
-        VSectionMut::new(sections)
+        VirtualSectionMut::new(sections)
     }
 
     pub fn has_section(&self, key: &str) -> bool {
         self.section_index.contains_key(&key.to_ascii_lowercase())
     }
 
-    pub fn section<'a>(&'a self, key: &str) -> Option<VSection<'a>> {
+    pub fn section<'a>(&'a self, key: &str) -> Option<VirtualSection<'a>> {
         self.section_index.get(&key.to_ascii_lowercase())
             .map(|indices| self.v_section(indices))
     }
 
-    pub fn section_mut<'a>(&'a mut self, key: &str) -> Option<VSectionMut<'a>> {
+    pub fn section_mut<'a>(&'a mut self, key: &str) -> Option<VirtualSectionMut<'a>> {
         self.section_index.get(&key.to_ascii_lowercase())
             .cloned()
             .map(|indices| self.v_section_mut(&indices))
     }
 
-    pub fn append_section<'a>(&'a mut self, key: &str) -> VSectionMut<'a> {
+    pub fn append_section<'a>(&'a mut self, key: &str) -> VirtualSectionMut<'a> {
         let lower_key = key.to_ascii_lowercase();
 
         // Return section if it exists
@@ -129,6 +129,10 @@ impl Ini {
             v_section.set_key(to_key);
             self.section_index.insert(lower_to_key, indices);
         }
+    }
+
+    pub fn iter_sections(&self) -> std::slice::Iter<'_, Section> {
+        self.sections.iter()
     }
 
     pub fn has_in(&self, section_key: &str, prop_key: &str) -> bool {

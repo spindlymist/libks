@@ -1,4 +1,4 @@
-use super::Section;
+use super::{Section, SectionGroupIter};
 
 #[derive(Debug)]
 pub struct VirtualSection<'a> {
@@ -27,6 +27,10 @@ impl<'a> VirtualSection<'a> {
     pub fn get(&self, key: &str) -> Option<&str> {
         self.sections.iter().rev()
             .find_map(|section| section.get(key))
+    }
+
+    pub fn iter(&self) -> SectionGroupIter {
+        SectionGroupIter::new(self.sections.clone())
     }
 }
 

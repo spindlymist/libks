@@ -128,6 +128,10 @@ impl ConcreteSection {
             }
         }
     }
+
+    pub fn iter(&self) -> ConcreteSectionIter<'_> {
+        ConcreteSectionIter::new(&self.source, &self.items)
+    }
 }
 
 impl std::fmt::Display for ConcreteSection {
@@ -136,5 +140,34 @@ impl std::fmt::Display for ConcreteSection {
             .with_source(&self.source)
             .collect::<String>();
         f.write_str(&output)
+    }
+}
+
+pub struct ConcreteSectionIter<'a> {
+    source: &'a str,
+    items: std::slice::Iter<'a, Item>,
+}
+
+impl<'a> ConcreteSectionIter<'a> {
+    fn new(source: &'a str, items: &'a [Item]) -> Self {
+        Self {
+            source,
+            items: items.iter(),
+        }
+    }
+}
+
+impl<'a> Iterator for ConcreteSectionIter<'a> {
+    type Item = (&'a str, &'a str);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        for item in self.items.by_ref() {
+            if let Item::Property(prop, _) = item {
+                let key = prop.key.of(self.source);
+                let value = prop.value.of(self.source);
+                return Some((key, value));
+            }
+        }
+        None
     }
 }
