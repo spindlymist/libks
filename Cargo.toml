@@ -3,3 +3,4 @@ members = [
     "libks",
     "libks_ini",
 ]
+resolver = "2"
