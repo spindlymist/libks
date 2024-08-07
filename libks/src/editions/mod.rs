@@ -6,9 +6,15 @@ use std::{
 use crate::{Result, map_bin, world_ini};
 
 mod file_system_heuristics;
-use file_system_heuristics::{check_files_basic, check_files_thorough, FilesReason};
+use file_system_heuristics::{
+    check_files_basic,
+    check_files_thorough,
+    FilesReason,
+};
+
 mod map_bin_heuristics;
 use map_bin_heuristics::{check_map_bin, MapBinReason};
+
 mod world_ini_heuristics;
 use world_ini_heuristics::{
     check_ini_basic,

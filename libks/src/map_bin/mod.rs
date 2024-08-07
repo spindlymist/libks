@@ -233,8 +233,9 @@ where
     P: AsRef<Path>
 {
     let file = OpenOptions::new()
-        .write(true)
         .create(true)
+        .write(true)
+        .truncate(true)
         .open(path)?;
     let writer = BufWriter::new(file);
     let mut encoder = GzEncoder::new(writer, Compression::default());
@@ -259,7 +260,7 @@ where
             i += 250;
         }
 
-        screen_buffer[i + 0] = screen.assets.tileset_a;
+        screen_buffer[i]     = screen.assets.tileset_a;
         screen_buffer[i + 1] = screen.assets.tileset_b;
         screen_buffer[i + 2] = screen.assets.ambiance_a;
         screen_buffer[i + 3] = screen.assets.ambiance_b;
