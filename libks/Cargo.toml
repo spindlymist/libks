@@ -13,6 +13,7 @@ categories = ["parser-implementations"]
 
 [dependencies]
 byteorder = "1.4.3"
+const-str = { version = "0.5.7" }
 encoding_rs = "0.8.32"
 flate2 = "1.0.25"
 image = { version = "0.24.7", optional = true }
