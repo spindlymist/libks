@@ -171,7 +171,7 @@ where
     P: AsRef<Path>,
 {
     let world_dir = world_dir.as_ref();
-    let world_ini = world_ini::load_ini(world_dir)?;
+    let world_ini = world_ini::load_ini_from_dir(world_dir)?;
     
     if let Some((edition, reason)) = check_ini_format(&world_ini) {
         return Ok((edition, reason.into()));
