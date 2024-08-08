@@ -1,4 +1,6 @@
-#[derive(thiserror::Error, Debug)]
+use thiserror::Error;
+
+#[derive(Error, Debug)]
 pub enum KsError {
     #[error("An IO error occurred: `{source}`")]
     Io {
@@ -29,6 +31,8 @@ pub enum KsError {
     #[cfg(feature="image")]
     #[error(transparent)]
     Draw(#[from] crate::DrawError),
+    #[error(transparent)]
+    ReadString(#[from] crate::io_util::ReadStringError),
 }
 
 pub type Result<T> = core::result::Result<T, KsError>;

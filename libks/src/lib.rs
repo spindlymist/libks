@@ -1,3 +1,6 @@
+mod common;
+mod io_util;
+
 pub mod constants;
 
 pub mod knytt_bin;
@@ -21,5 +24,3 @@ pub use world_ini::WorldIniError;
 pub mod error;
 pub use error::KsError;
 pub use error::Result;
-
-mod common;

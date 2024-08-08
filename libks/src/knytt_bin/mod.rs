@@ -12,4 +12,3 @@ pub use unpack::{
 };
 
 const ENTRY_SIGNATURE: [u8; 2] = [b'N', b'F'];
-const MB: usize = 1024 * 1024;
