@@ -1,11 +1,26 @@
-use std::{io::{self, prelude::*, BufReader, BufWriter}, path::Path, fs::OpenOptions};
-use byteorder::ReadBytesExt;
+use std::{
+    cmp::min,
+    fs::OpenOptions,
+    io::{self, prelude::*, BufReader, BufWriter},
+    path::Path,
+};
+
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 
-use crate::{Result, constants::*, error::KsError};
+use crate::{
+    common::parse_xy,
+    constants::*,
+    error::KsError,
+    io_util,
+    Result,
+};
 
 mod error;
 pub use error::MapBinError;
+
+const SCREEN_DATA_LEN: usize = 3006;
+const SCREEN_DATA_LEN_U32: u32 = 3006;
 
 #[derive(Debug, Clone)]
 pub struct ScreenData {
@@ -31,8 +46,42 @@ pub struct Tile(pub u8, pub u8);
 #[derive(Debug, Clone)]
 pub struct LayerData(pub [Tile; TILES_PER_LAYER]);
 
+pub enum ParseWarning {
+    UnrecognizedEntry(String, usize),
+    IncompleteScreenData(String, usize),
+    ExtraScreenData(String, usize),
+}
+
+impl std::fmt::Display for ParseWarning {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use ParseWarning::*;
+        match self {
+            UnrecognizedEntry(key, len) =>
+                write!(f, "Found an unrecognized entry `{key}` with {len} bytes."),
+            IncompleteScreenData(key, len) =>
+                write!(f, "The screen entry `{key}` was skipped because it was only {len}/3006 bytes."),
+            ExtraScreenData(key, len) =>
+                write!(f, "The screen entry `{key}` had {} extra bytes.", len - 3006),
+        }
+    }
+}
+
 /// Parses all screens from the Map.bin data stored at `path`. The data is assumed to be gzipped.
+/// 
+/// This variant ignores abnormalities in the data. Use [`parse_map_file_with_warnings`] if you
+/// want information about abnormalities.
 pub fn parse_map_file<P>(path: P) -> Result<Vec<ScreenData>>
+where
+    P: AsRef<Path>
+{
+    Ok(parse_map_file_with_warnings(path)?.0)
+}
+
+/// Parses all screens from the Map.bin data stored at `path`. The data is assumed to be gzipped.
+/// 
+/// This variant provides warnings if there are abnormalities in the data such as non-screen entries
+/// or screens with extra data. If you don't care about these warnings, use [`parse_map_file`].
+pub fn parse_map_file_with_warnings<P>(path: P) -> Result<(Vec<ScreenData>, Vec<ParseWarning>)>
 where
     P: AsRef<Path>
 {
@@ -43,7 +92,7 @@ where
 
 /// Parses all screens from `reader`, which must yield gzipped Map.bin data.
 /// If the data is uncompressed, call [`parse_map_uncompressed`] instead.
-pub fn parse_map_gzipped<R>(reader: &mut R) -> Result<Vec<ScreenData>>
+pub fn parse_map_gzipped<R>(reader: &mut R) -> Result<(Vec<ScreenData>, Vec<ParseWarning>)>
 where
     R: Read
 {
@@ -54,69 +103,96 @@ where
 
 /// Parses all screens from `reader`, which must yield uncompressed Map.bin data.
 /// If the data is compressed, call [`parse_map_gzipped`] instead.
-pub fn parse_map_uncompressed<R>(reader: &mut R) -> Result<Vec<ScreenData>>
+/// 
+/// Map.bin consists solely of a series of named binary chunks called workspaces. Each
+/// workspace consists of:
+/// - A name, such as `x1000y1000`. Null-terminated string. The encoding is presumed
+///   to be Windows-1252, but this hasn't been confirmed.
+/// - Length in bytes. Little endian 32-byte integer. Presumed to be unsigned, but
+///   this hasn't been confirmed.
+/// - Data
+pub fn parse_map_uncompressed<R>(reader: &mut R) -> Result<(Vec<ScreenData>, Vec<ParseWarning>)>
 where
     R: BufRead
 {
-    // The level editor sometimes writes garbage before the first screen,
-    // so discard anything before the first 'x'
-    consume_until(reader, b'x')?;
-
-    // Parse screens
+    let mut warnings = Vec::new();
     let mut screens = Vec::new();
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(256);
+
+    let mut warn = |warning| warnings.push(warning);
+    
+    // Parse screens
     while !reader.fill_buf()?.is_empty() {
-        let screen = parse_screen(reader, &mut buf)?;
-        screens.push(screen);
-        buf.clear();
+        let (entry_key, entry_len) = read_entry_header(reader, &mut buf, 256)?;
+
+        let bytes_read = match parse_xy(&entry_key) {
+            // Incomplete screen data
+            Some(_) if entry_len < SCREEN_DATA_LEN => {
+                warn(ParseWarning::IncompleteScreenData(entry_key.clone(), entry_len));
+                0
+            },
+            // Screen data
+            Some(position) => {
+                if entry_len > SCREEN_DATA_LEN {
+                    warn(ParseWarning::ExtraScreenData(entry_key.clone(), entry_len));
+                }
+
+                let screen = parse_screen(reader, position)?;
+                screens.push(screen);
+
+                SCREEN_DATA_LEN
+            },
+            // Unknown entry
+            // This is most likely level editor garbage under the empty key
+            None => {
+                warn(ParseWarning::UnrecognizedEntry(entry_key.clone(), entry_len));
+                0
+            }
+        };
+
+        let bytes_to_skip = entry_len - bytes_read;
+        if bytes_to_skip > 0 {
+            // Generally, this won't happen, but when it does, we may need to
+            // skip a lot of bytes. We'll enlarge the buffer as needed (up to 1 MB)
+            // to speed things up.
+            io_util::resize_buffer(&mut buf, min(bytes_to_skip, MB));
+
+            let bytes_skipped = io_util::skip_at_most(reader, &mut buf, bytes_to_skip)?;
+            if bytes_skipped < bytes_to_skip {
+                return Err(MapBinError::MissingData {
+                    entry_key,
+                    entry_len,
+                    bytes_read: bytes_read + bytes_skipped,
+                }.into());
+            }
+        }
     }
 
-    Ok(screens)
+    Ok((screens, warnings))
 }
 
-const SCREEN_SIGNATURE: [u8; 4] = [0xBE, 0x0B, 0x00, 0x00];
+fn read_entry_header<R>(reader: &mut R, buf: &mut Vec<u8>, max_len: usize) -> Result<(String, usize)>
+where
+    R: BufRead
+{
+    let key = io_util::read_windows_1252_null_term(reader, buf, max_len)?;
+    let len = reader.read_u32::<LittleEndian>()?
+        .try_into()
+        .expect("u32::MAX should be less than or equal to usize::MAX");
+
+    Ok((key, len))
+}
 
 /// Parses a single screen from `reader`.
 /// 
 /// The screen format is:
-/// - Screen position as a null-terminated ASCII string, such as x1000y1000
-/// - 4-byte signature (# of bytes of data to follow, which is constant)
 /// - 4 tile layers (0-3, 250 bytes each) - see [`parse_tile_layer`]
 /// - 4 object layers (4-7, 500 bytes each) - see [`parse_object_layer`]
 /// - Asset IDs (6 bytes) - see [`parse_asset_ids`]
-pub fn parse_screen<R>(reader: &mut R, buf: &mut Vec<u8>) -> Result<ScreenData>
+fn parse_screen<R>(reader: &mut R, position: (i64, i64)) -> Result<ScreenData>
 where
     R: BufRead
 {
-    // Read and parse position
-    let position = {
-        if reader.read_until(0, buf)? < 5 {
-            return Err(MapBinError::BadScreenPosition.into());
-        }
-        buf.pop(); // Discard the null byte
-
-        let position = std::str::from_utf8(buf)?
-            .strip_prefix('x')
-            .and_then(|rest| rest.split_once('y'));
-        
-        if let Some((x_string, y_string)) = position {
-            (str::parse::<i64>(x_string)?, str::parse::<i64>(y_string)?)
-        }
-        else {
-            return Err(MapBinError::BadScreenPosition.into());
-        }
-    };
-
-    // Verify signature
-    {
-        let mut bytes = [0; 4];
-        reader.read_exact(&mut bytes)?;
-
-        if bytes != SCREEN_SIGNATURE {
-            return Err(MapBinError::UnrecognizedSignature { position, bytes }.into())
-        }
-    }
-
     // Read layers
     let mut layers: [LayerData; LAYER_COUNT] = unsafe { std::mem::zeroed() };
     for (i, layer) in layers.iter_mut().enumerate() {
@@ -145,7 +221,7 @@ where
 fn make_missing_data_error(err: KsError, position: (i64, i64)) -> KsError {
     if let KsError::Io { source, .. } = &err {
         if source.kind() == io::ErrorKind::UnexpectedEof {
-            return MapBinError::MissingData { position }.into();
+            return MapBinError::ScreenMissingData { position }.into();
         }
     }
 
@@ -161,7 +237,7 @@ fn is_object_layer(i: usize) -> bool {
 /// 
 /// Each asset ID is a single unsigned byte. The order is:
 /// tileset A, tileset B, music, ambiance A, ambiance B, gradient.
-pub fn parse_asset_ids<R>(reader: &mut R) -> Result<AssetIds>
+fn parse_asset_ids<R>(reader: &mut R) -> Result<AssetIds>
 where
     R: Read
 {
@@ -184,7 +260,7 @@ where
 /// For example, `0x00` is the top left tile of tileset A. `0x01` is the tile to its right.
 /// `0x7F` is the bottom right tile of tileset A. `0x80` is the top left tile of tileset B.
 /// `0x81` is the tile to its right. `0xFF` is the bottom right tile of tileset B.
-pub fn parse_tile_layer<R>(reader: &mut R) -> Result<LayerData>
+fn parse_tile_layer<R>(reader: &mut R) -> Result<LayerData>
 where
     R: Read
 {
@@ -209,7 +285,7 @@ where
 /// An object layer consists of 500 bytes: 250 bytes of object indices followed by 250 bytes
 /// of bank indices. In each 250 byte block, each byte represents one tile, starting from the
 /// top left and proceeding row by row.
-pub fn parse_object_layer<R>(reader: &mut R) -> Result<LayerData>
+fn parse_object_layer<R>(reader: &mut R) -> Result<LayerData>
 where
     R: Read
 {
@@ -268,50 +344,10 @@ where
         screen_buffer[i + 5] = screen.assets.gradient;
         
         encoder.write_all(&format!("x{}y{}\0", screen.position.0, screen.position.1).into_bytes())?;
-        encoder.write_all(&SCREEN_SIGNATURE)?;
+        encoder.write_u32::<LittleEndian>(SCREEN_DATA_LEN_U32)?;
         encoder.write_all(&screen_buffer)?;
         encoder.flush()?;
     }
 
     Ok(())
-}
-
-/// Consumes bytes from `reader` up to and including a delimiter byte.
-/// 
-/// On success, it returns the number of bytes consumed (including the delimiter).
-/// 
-/// # Errors
-/// 
-/// If this function encounters an "end of file" before finding the delimiter, it returns
-/// an [`Error::Io`] error with source error of kind `std::io::ErrorKind::UnexpectedEof`.
-/// It may also return other kinds of I/O errors.
-fn consume_until<R>(reader: &mut R, delim: u8) -> Result<usize>
-where
-    R: BufRead
-{
-    let mut consumed_count = 0;
-    let mut bytes: &[u8] = &[];
-    let mut index = None;
-
-    while index.is_none() {
-        let bytes_len = bytes.len();
-        reader.consume(bytes_len);
-        consumed_count += bytes_len;
-
-        bytes = reader.fill_buf()?;
-        if bytes.is_empty() {
-            return Err(
-                io::Error::new(io::ErrorKind::UnexpectedEof, "consume_until reached EOF before finding delimiter.").into()
-            );
-        }
-
-        index = bytes.iter().position(|&byte| byte == delim);
-    }
-
-    let index = index.expect("Loop shouldn't end unless index is Some");
-
-    reader.consume(index);
-    consumed_count += index;
-
-    Ok(consumed_count)
 }
