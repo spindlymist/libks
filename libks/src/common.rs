@@ -1,10 +1,22 @@
-pub fn parse_xy(s: &str) -> Option<(i64, i64)> {
+#[cfg(feature = "decimal")]
+use rust_decimal::prelude::*;
+
+#[cfg(not(feature = "decimal"))]
+pub type WorldGridScalar = f64;
+
+#[cfg(feature = "decimal")]
+pub type WorldGridScalar = Decimal;
+
+pub type ScreenCoord = (WorldGridScalar, WorldGridScalar);
+
+pub fn parse_xy(s: &str) -> Option<ScreenCoord> {
     let (x, y) =
         s.strip_prefix('x')?
         .split_once('y')?;
-    
-    let Ok(x) = str::parse::<i64>(x) else { return None };
-    let Ok(y) = str::parse::<i64>(y) else { return None };
+
+    let Ok(x) = str::parse::<WorldGridScalar>(x) else { return None };
+    let Ok(y) = str::parse::<WorldGridScalar>(y) else { return None };
 
     Some((x, y))
 }
+

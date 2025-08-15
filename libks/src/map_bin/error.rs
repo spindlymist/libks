@@ -10,6 +10,6 @@ pub enum MapBinError {
     },
     #[error("The screen at x{}y{} is missing data.", position.0, position.1)]
     ScreenMissingData {
-        position: (i64, i64),
+        position: crate::common::ScreenCoord,
     }
 }

@@ -18,9 +18,12 @@ encoding_rs = "0.8.32"
 flate2 = "1.0.25"
 image = { version = "0.24.7", optional = true }
 libks_ini = { version = "0.1.0", path = "../libks_ini" }
+rust_decimal = { version = "1.37.2", optional = true }
 serde = { version = "1.0.163", features = ["serde_derive"], optional = true }
 thiserror = "1.0.38"
 
 [features]
 image = ["dep:image"]
 serde = ["dep:serde"]
+decimal = ["dep:rust_decimal"]
+

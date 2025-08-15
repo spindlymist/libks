@@ -9,7 +9,7 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 
 use crate::{
-    common::parse_xy,
+    common::{parse_xy, ScreenCoord},
     constants::*,
     error::KsError,
     io_util,
@@ -24,7 +24,7 @@ const SCREEN_DATA_LEN_U32: u32 = 3006;
 
 #[derive(Debug, Clone)]
 pub struct ScreenData {
-    pub position: (i64, i64),
+    pub position: ScreenCoord,
     pub layers: [LayerData; LAYER_COUNT],
     pub assets: AssetIds,
 }
@@ -189,7 +189,7 @@ where
 /// - 4 tile layers (0-3, 250 bytes each) - see [`parse_tile_layer`]
 /// - 4 object layers (4-7, 500 bytes each) - see [`parse_object_layer`]
 /// - Asset IDs (6 bytes) - see [`parse_asset_ids`]
-fn parse_screen<R>(reader: &mut R, position: (i64, i64)) -> Result<ScreenData>
+fn parse_screen<R>(reader: &mut R, position: ScreenCoord) -> Result<ScreenData>
 where
     R: BufRead
 {
@@ -218,7 +218,7 @@ where
 }
 
 /// Converts an `UnexpectedEof` error to `MapBinError::MissingData`.
-fn make_missing_data_error(err: KsError, position: (i64, i64)) -> KsError {
+fn make_missing_data_error(err: KsError, position: ScreenCoord) -> KsError {
     if let KsError::Io { source, .. } = &err {
         if source.kind() == io::ErrorKind::UnexpectedEof {
             return MapBinError::ScreenMissingData { position }.into();
