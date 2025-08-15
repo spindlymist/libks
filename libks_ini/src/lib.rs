@@ -6,3 +6,4 @@ mod span;
 
 pub use ini::Ini;
 pub use parse::Parser;
+pub use section::VirtualSection;

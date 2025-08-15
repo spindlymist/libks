@@ -28,9 +28,6 @@ pub enum KsError {
     MapBin(#[from] crate::MapBinError),
     #[error(transparent)]
     WorldIni(#[from] crate::WorldIniError),
-    #[cfg(feature="image")]
-    #[error(transparent)]
-    Draw(#[from] crate::DrawError),
     #[error(transparent)]
     ReadString(#[from] crate::io_util::ReadStringError),
 }
