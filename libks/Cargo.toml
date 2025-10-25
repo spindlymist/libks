@@ -21,9 +21,10 @@ libks_ini = { version = "0.1.0", path = "../libks_ini" }
 rust_decimal = { version = "1.37.2", optional = true }
 serde = { version = "1.0.163", features = ["serde_derive"], optional = true }
 thiserror = "1.0.38"
+regex = { version = "1.12.2", features = ["use_std"] }
 
 [features]
+fractional-coords = []
 image = ["dep:image"]
 serde = ["dep:serde"]
-decimal = ["dep:rust_decimal"]
-
+decimal = ["fractional-coords", "dep:rust_decimal"]

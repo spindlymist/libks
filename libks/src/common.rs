@@ -1,7 +1,10 @@
 #[cfg(feature = "decimal")]
 use rust_decimal::prelude::*;
 
-#[cfg(not(feature = "decimal"))]
+#[cfg(not(feature = "fractional-coords"))]
+pub type WorldGridScalar = i64;
+
+#[cfg(all(feature = "fractional-coords", not(feature = "decimal")))]
 pub type WorldGridScalar = f64;
 
 #[cfg(feature = "decimal")]
@@ -19,4 +22,3 @@ pub fn parse_xy(s: &str) -> Option<ScreenCoord> {
 
     Some((x, y))
 }
-
