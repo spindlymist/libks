@@ -29,7 +29,7 @@ impl<'a> VirtualSection<'a> {
             .find_map(|section| section.get(key))
     }
 
-    pub fn iter(&self) -> SectionGroupIter {
+    pub fn iter(&'a self) -> SectionGroupIter<'a> {
         SectionGroupIter::new(self.sections.clone())
     }
 }

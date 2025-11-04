@@ -7,7 +7,7 @@ pub enum Span {
 }
 
 impl Span {
-    pub fn of<'a>(&'a self, s: &'a str) -> &'_ str {
+    pub fn of<'a>(&'a self, s: &'a str) -> &'a str {
         match self {
             Span::Sliced(range) => &s[range.start .. range.end],
             Span::Owned(value) => value,
