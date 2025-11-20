@@ -1,14 +1,8 @@
-#[cfg(feature = "decimal")]
-use rust_decimal::prelude::*;
-
 #[cfg(not(feature = "fractional-coords"))]
-pub type WorldGridScalar = i64;
+pub type WorldGridScalar = i32;
 
-#[cfg(all(feature = "fractional-coords", not(feature = "decimal")))]
-pub type WorldGridScalar = f64;
-
-#[cfg(feature = "decimal")]
-pub type WorldGridScalar = Decimal;
+#[cfg(feature = "fractional-coords")]
+pub type WorldGridScalar = f32;
 
 pub type ScreenCoord = (WorldGridScalar, WorldGridScalar);
 
