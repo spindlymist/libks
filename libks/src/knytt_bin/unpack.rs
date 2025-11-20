@@ -1,8 +1,5 @@
 use std::{
-    env,
-    fs::{self, File, OpenOptions},
-    path::{Path, PathBuf},
-    io::{BufReader, BufRead, BufWriter, Write, Read},
+    env, fs::{self, File, OpenOptions}, io::{BufRead, BufReader, BufWriter, Read, Seek, Write}, os::windows::fs::MetadataExt, path::{Path, PathBuf}
 };
 
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -212,4 +209,37 @@ fn unpack_next_entry(
     }
 
     Ok(())
+}
+
+#[derive(Debug)]
+pub struct KnyttBinHeader {
+    pub path: PathBuf,
+    pub size: usize,
+    pub offset: u64,
+}
+
+pub fn parse_headers<P: AsRef<Path>>(bin_path: P) -> Result<Vec<KnyttBinHeader>> {
+    let bin_path = bin_path.as_ref();   
+    let mut reader = {
+        let file = File::open(bin_path)?;
+        BufReader::new(file)
+    };
+    let mut buf = Vec::<u8>::with_capacity(4 * MB);
+    let mut headers = Vec::new();
+
+    // Discard top-level header
+    let _ = read_entry_header(&mut reader, &mut buf, 256)?;
+    
+    while !reader.fill_buf()?.is_empty() {
+        let (path, size) = read_entry_header(&mut reader, &mut buf, 256)?;
+        let offset = reader.stream_position()?;
+        headers.push(KnyttBinHeader {
+            path,
+            size,
+            offset,
+        });
+        reader.seek_relative(size.try_into().unwrap())?;
+    }
+    
+    Ok(headers)
 }

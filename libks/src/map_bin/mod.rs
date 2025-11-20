@@ -86,19 +86,19 @@ where
     P: AsRef<Path>
 {
     let file = std::fs::File::open(path)?;
-    let mut reader = BufReader::new(file);
-    parse_map_gzipped(&mut reader)
+    let reader = BufReader::new(file);
+    parse_map_gzipped(reader)
 }
 
 /// Parses all screens from `reader`, which must yield gzipped Map.bin data.
 /// If the data is uncompressed, call [`parse_map_uncompressed`] instead.
-pub fn parse_map_gzipped<R>(reader: &mut R) -> Result<(Vec<ScreenData>, Vec<ParseWarning>)>
+pub fn parse_map_gzipped<R>(reader: R) -> Result<(Vec<ScreenData>, Vec<ParseWarning>)>
 where
     R: Read
 {
     let decoder = GzDecoder::new(reader);
-    let mut reader = BufReader::new(decoder);
-    parse_map_uncompressed(&mut reader)
+    let reader = BufReader::new(decoder);
+    parse_map_uncompressed(reader)
 }
 
 /// Parses all screens from `reader`, which must yield uncompressed Map.bin data.
@@ -111,7 +111,7 @@ where
 /// - Length in bytes. Little endian 32-byte integer. Presumed to be unsigned, but
 ///   this hasn't been confirmed.
 /// - Data
-pub fn parse_map_uncompressed<R>(reader: &mut R) -> Result<(Vec<ScreenData>, Vec<ParseWarning>)>
+pub fn parse_map_uncompressed<R>(mut reader: R) -> Result<(Vec<ScreenData>, Vec<ParseWarning>)>
 where
     R: BufRead
 {
@@ -123,7 +123,7 @@ where
     
     // Parse screens
     while !reader.fill_buf()?.is_empty() {
-        let (entry_key, entry_len) = read_entry_header(reader, &mut buf, 256)?;
+        let (entry_key, entry_len) = read_entry_header(&mut reader, &mut buf, 256)?;
 
         let bytes_read = match parse_xy(&entry_key) {
             // Incomplete screen data
@@ -137,7 +137,7 @@ where
                     warn(ParseWarning::ExtraScreenData(entry_key.clone(), entry_len));
                 }
 
-                let screen = parse_screen(reader, position)?;
+                let screen = parse_screen(&mut reader, position)?;
                 screens.push(screen);
 
                 SCREEN_DATA_LEN
@@ -157,7 +157,7 @@ where
             // to speed things up.
             io_util::resize_buffer(&mut buf, min(bytes_to_skip, MB));
 
-            let bytes_skipped = io_util::skip_at_most(reader, &mut buf, bytes_to_skip)?;
+            let bytes_skipped = io_util::skip_at_most(&mut reader, &mut buf, bytes_to_skip)?;
             if bytes_skipped < bytes_to_skip {
                 return Err(MapBinError::MissingData {
                     entry_key,

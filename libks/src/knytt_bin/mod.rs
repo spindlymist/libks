@@ -8,6 +8,7 @@ mod unpack;
 pub use unpack::{
     unpack,
     unpack_with_options,
+    parse_headers,
     UnpackOptions,
 };
 
