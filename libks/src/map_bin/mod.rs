@@ -43,7 +43,7 @@ pub struct AssetIds {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Tile(pub u8, pub u8);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LayerData(pub [Tile; TILES_PER_LAYER]);
 
 pub enum ParseWarning {
