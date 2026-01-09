@@ -12,13 +12,13 @@ keywords = ["knytt", "stories", "ks"]
 categories = ["parser-implementations"]
 
 [dependencies]
-byteorder = "1.4.3"
-const-str = { version = "0.5.7" }
-encoding_rs = "0.8.32"
-flate2 = "1.0.25"
+byteorder = "1.5.0"
+const-str = { version = "1.0.0" }
+encoding_rs = "0.8.35"
+flate2 = "1.1.5"
 libks_ini = { version = "0.1.0", path = "../libks_ini" }
-serde = { version = "1.0.163", features = ["serde_derive"], optional = true }
-thiserror = "1.0.38"
+serde = { version = "1.0.228", features = ["serde_derive"], optional = true }
+thiserror = "2.0.17"
 regex = { version = "1.12.2", features = ["use_std"] }
 
 [features]
