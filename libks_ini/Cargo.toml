@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-memchr = "2.7.4"
+memchr = "2.7.6"
 
 [dev-dependencies]
-const-str = "0.5.7"
+const-str = "1.0.0"
