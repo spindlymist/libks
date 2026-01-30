@@ -40,7 +40,7 @@ pub struct AssetIds {
     pub gradient: AssetId,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Tile(pub u8, pub u8);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
