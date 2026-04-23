@@ -49,7 +49,10 @@ where
 }
 
 fn pack_dir_recursive(path: String, writer: &mut BufWriter<File>) -> Result<usize> {
-    let path_ref: &Path = path.as_ref();
+    let path_ref: &Path = match path.as_str() {
+        "" => ".".as_ref(),
+        _ => path.as_ref(),
+    };
     let mut packed_count = 0;
 
     for entry in path_ref.read_dir()? {
