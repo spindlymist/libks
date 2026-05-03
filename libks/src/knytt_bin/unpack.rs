@@ -1,5 +1,5 @@
 use std::{
-    env, fs::{self, File, OpenOptions}, io::{BufRead, BufReader, BufWriter, Read, Seek, Write}, os::windows::fs::MetadataExt, path::{Path, PathBuf}
+    env, fs::{self, File, OpenOptions}, io::{BufRead, BufReader, BufWriter, Read, Seek, Write}, path::{Path, PathBuf}
 };
 
 use byteorder::{LittleEndian, ReadBytesExt};
