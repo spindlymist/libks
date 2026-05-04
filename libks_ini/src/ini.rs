@@ -92,6 +92,14 @@ impl Ini {
             .map(|indices| self.v_section_mut(&indices))
     }
     
+    pub fn section_by_index<'a>(&'a self, index: usize) -> Option<&Section<'a>> {
+        self.sections.get(index)
+    }
+    
+    pub fn section_by_index_mut<'a>(&'a mut self, index: usize) -> Option<&mut Section<'a>> {
+        self.sections.get_mut(index)
+    }
+    
     pub fn global_section(&self) -> &Section {
         &self.global_section
     }
