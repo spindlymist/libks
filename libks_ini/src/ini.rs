@@ -91,6 +91,14 @@ impl Ini {
             .cloned()
             .map(|indices| self.v_section_mut(&indices))
     }
+    
+    pub fn global_section(&self) -> &Section {
+        &self.global_section
+    }
+    
+    pub fn global_section_mut(&mut self) -> &mut Section {
+        &mut self.global_section
+    }
 
     pub fn append_section<'a>(&'a mut self, key: &str) -> VirtualSectionMut<'a> {
         let lower_key = key.to_ascii_lowercase();
