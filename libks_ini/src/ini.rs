@@ -103,10 +103,31 @@ impl Ini {
         }
 
         // Update index
-        let indices = vec![self.sections.len() - 1];
-        self.section_index.insert(lower_key, indices.clone());
+        let index = self.sections.len() - 1;
+        self.section_index.insert(lower_key, vec![index]);
 
-        self.v_section_mut(&indices)
+        self.v_section_mut(&[index])
+    }
+    
+    pub fn insert_section<'a>(&'a mut self, key: String, index: usize) -> VirtualSectionMut<'a> {
+        let lower_key = key.to_ascii_lowercase();
+
+        // Return section if it exists
+        if self.section_index.contains_key(&lower_key) {
+            return self.section_mut(&lower_key).unwrap();
+        }
+
+        // Create new section
+        {
+            let header = Item::Section(key.into(), ("", "\n").into());
+            let section = Section::new(Rc::clone(&self.source), header);
+            self.sections.insert(index, section);
+        }
+
+        // Update index
+        self.section_index = Self::build_section_index(&self.sections);
+        
+        self.v_section_mut(&[index])
     }
 
     pub fn remove_section(&mut self, key: &str) {
