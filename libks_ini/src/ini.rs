@@ -24,7 +24,7 @@ pub struct Ini {
 impl Ini {
     pub fn new(source: &str) -> Self {
         let source = Rc::<str>::from(source);
-        let mut global_section = Section::new_global(Rc::clone(&source));
+        let mut global_section = Section::new_empty(Rc::clone(&source));
         let mut sections = Vec::new();
 
         for item in Parser::new(&source).map(Item::from) {
@@ -48,6 +48,10 @@ impl Ini {
             sections,
             section_index,
         }
+    }
+
+    pub fn source(&self) -> Rc<str> {
+        Rc::clone(&self.source)
     }
 
     fn build_section_index(sections: &[Section]) -> HashMap<String, Vec<usize>> {

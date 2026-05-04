@@ -14,7 +14,7 @@ pub struct ConcreteSection {
 }
 
 impl ConcreteSection {
-    pub(crate) fn new(source: Rc<str>, header: Item) -> Self {
+    pub fn new(source: Rc<str>, header: Item) -> Self {
         if !matches!(header, Item::Section(..)) {
             panic!("Section header item must be Section variant");
         }
@@ -25,11 +25,11 @@ impl ConcreteSection {
         Self { source, items }
     }
 
-    pub(crate) fn new_global(source: Rc<str>) -> Self {
+    pub fn new_empty(source: Rc<str>) -> Self {
         Self { source, items: Vec::new() }
     }
 
-    pub(crate) fn push_item(&mut self, item: Item) {
+    pub fn push_item(&mut self, item: Item) {
         self.items.push(item);
     }
 
