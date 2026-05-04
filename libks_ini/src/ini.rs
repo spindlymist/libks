@@ -13,6 +13,7 @@ use crate::{
     },
 };
 
+#[derive(Clone)]
 pub struct Ini {
     source: Rc<str>,
     global_section: Section,
@@ -198,7 +199,7 @@ impl std::fmt::Display for Ini {
     }
 }
 
-fn borrow_indices<'a, T>(from: &'a [T], indices: &[usize]) -> Vec<&'a T> {
+fn borrow_indices<'a,T>(from: &'a [T], indices: &[usize]) -> Vec<&'a T> {
     indices.iter()
         .map(|&i| &from[i])
         .collect()
