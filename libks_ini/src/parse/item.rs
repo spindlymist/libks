@@ -1,29 +1,31 @@
+use std::ops::Range;
+
 use super::whitespace::{Padding2, Padding4, LineEnding};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Item<'a> {
+pub enum Item {
     Section {
-        key: &'a str,
-        padding: Padding2<'a>,
+        key: Range<usize>,
+        padding: Padding2,
         line_ending: LineEnding,
     },
     Property {
-        key: &'a str,
-        value: &'a str,
-        padding: Padding4<'a>,
+        key: Range<usize>,
+        value: Range<usize>,
+        padding: Padding4,
         line_ending: LineEnding,
     },
     Comment {
-        comment: &'a str,
-        padding: Padding2<'a>,
+        comment: Range<usize>,
+        padding: Padding2,
         line_ending: LineEnding,
     },
     Blank {
-        line: &'a str,
+        line: Range<usize>,
         line_ending: LineEnding,
     },
     Error {
-        line: &'a str,
+        line: Range<usize>,
         line_ending: LineEnding,
     },
 }
