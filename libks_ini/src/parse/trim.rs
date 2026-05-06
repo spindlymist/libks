@@ -1,6 +1,6 @@
 pub fn trimmed_range_start(s: &str) -> usize {
-    for (i, byte) in s.as_bytes().iter().enumerate() {
-        if *byte != b' ' {
+    for (i, ch) in s.char_indices() {
+        if !ch.is_ascii_whitespace() {
             return i;
         }
     }
@@ -8,8 +8,8 @@ pub fn trimmed_range_start(s: &str) -> usize {
 }
 
 pub fn trimmed_range_end(s: &str) -> usize {
-    for (i, byte) in s.as_bytes().iter().enumerate().rev() {
-        if *byte != b' ' {       
+    for (i, ch) in s.char_indices().rev() {
+        if !ch.is_ascii_whitespace() {    
             return i + 1;
         }
     }
