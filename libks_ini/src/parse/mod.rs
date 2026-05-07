@@ -4,11 +4,8 @@ use line::{Line, next_line};
 mod trim;
 use trim::{trimmed_range_start, trimmed_range_end};
 
-mod item;
-use item::Item;
-
-mod whitespace;
-use whitespace::{Padding2, Padding4};
+use crate::item::indexed::Item;
+use crate::whitespace::indexed::{Padding2, Padding4};
 
 pub struct Parser<'a> {
     source: &'a str,
@@ -101,93 +98,11 @@ impl<'a> Iterator for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{*, item::*, whitespace::*};
+    use super::*;
+    use crate::whitespace::LineEnding;
+    use crate::whitespace::owned::{Padding2 as OwnedPadding2, Padding4 as OwnedPadding4};
+    use crate::item::owned::Item as OwnedItem;
     
-    #[derive(Debug, Clone, PartialEq, Eq, Default)]
-    pub struct OwnedPadding2(String, String);
-    
-    impl OwnedPadding2 {
-        pub fn from_borrowed(borrowed: Padding2, source: &str) -> OwnedPadding2 {
-            OwnedPadding2(
-                source[borrowed.0].to_owned(),
-                source[borrowed.1].to_owned(),
-            )
-        }
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Default)]
-    pub struct OwnedPadding4(String, String, String, String);
-    
-    impl OwnedPadding4 {
-        pub fn from_borrowed(borrowed: Padding4, source: &str) -> OwnedPadding4 {
-            OwnedPadding4(
-                source[borrowed.0].to_owned(),
-                source[borrowed.1].to_owned(),
-                source[borrowed.2].to_owned(),
-                source[borrowed.3].to_owned(),
-            )
-        }
-    }
-    
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum OwnedItem {
-        Section {
-            key: String,
-            padding: OwnedPadding2,
-            line_ending: LineEnding,
-        },
-        Property {
-            key: String,
-            value: String,
-            padding: OwnedPadding4,
-            line_ending: LineEnding,
-        },
-        Comment {
-            comment: String,
-            padding: OwnedPadding2,
-            line_ending: LineEnding,
-        },
-        Blank {
-            line: String,
-            line_ending: LineEnding,
-        },
-        Error {
-            line: String,
-            line_ending: LineEnding,
-        },
-    }
-    
-    impl OwnedItem {
-        pub fn from_borrowed(borrowed: Item, source: &str) -> OwnedItem {
-            match borrowed {
-                Item::Section { key, padding, line_ending } => OwnedItem::Section {
-                    key: source[key].to_owned(),
-                    padding: OwnedPadding2::from_borrowed(padding, source),
-                    line_ending,
-                },
-                Item::Property { key, value, padding, line_ending } => OwnedItem::Property {
-                    key: source[key].to_owned(),
-                    value: source[value].to_owned(),
-                    padding: OwnedPadding4::from_borrowed(padding, source),
-                    line_ending,
-                },
-                Item::Comment { comment, padding, line_ending } => OwnedItem::Comment {
-                    comment: source[comment].to_owned(),
-                    padding: OwnedPadding2::from_borrowed(padding, source),
-                    line_ending,
-                },
-                Item::Blank { line, line_ending } => OwnedItem::Blank {
-                    line: source[line].to_owned(),
-                    line_ending,
-                },
-                Item::Error { line, line_ending } => OwnedItem::Error {
-                    line: source[line].to_owned(),
-                    line_ending,
-                },
-            }
-        }
-    }
-
     macro_rules! padding {
         ($p1:literal, $p2:literal) => {
             OwnedPadding2(
@@ -304,7 +219,7 @@ ShiftEffect(A)=False
 ShiftSound(A)=None";
         let parser = Parser::new(source);
         let actual: Vec<_> = parser
-            .map(|item| OwnedItem::from_borrowed(item, source))
+            .map(|item| item.into_owned(source))
             .collect();
         let expected = [
             comment!("Hello"),
@@ -330,7 +245,7 @@ Name
 =False";
         let parser = Parser::new(source);
         let actual: Vec<_> = parser
-            .map(|item| OwnedItem::from_borrowed(item, source))
+            .map(|item| item.into_owned(source))
             .collect();
         let expected = [
             error!("[World] invalid"),
@@ -355,7 +270,7 @@ ShiftEffect(A)=False
   ShiftSound(A)  =  None  ";
         let parser = Parser::new(source);
         let actual: Vec<_> = parser
-            .map(|item| OwnedItem::from_borrowed(item, source))
+            .map(|item| item.into_owned(source))
             .collect();
         let expected = [
             comment!("  Hello", pad=padding!(2, 2)),
@@ -385,7 +300,7 @@ ShiftSound(A)=None\r\n\
 ";
         let parser = Parser::new(source);
         let actual: Vec<_> = parser
-            .map(|item| OwnedItem::from_borrowed(item, source))
+            .map(|item| item.into_owned(source))
             .collect();
         let expected = [
             comment!("Hello", end=LineEnding::Cr),

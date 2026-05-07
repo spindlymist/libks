@@ -1,6 +1,7 @@
 use std::ops::Range;
 
-use super::{trim::trimmed_range, whitespace::LineEnding};
+use crate::whitespace::LineEnding;
+use super::trim::trimmed_range;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Line {
