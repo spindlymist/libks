@@ -4,7 +4,7 @@ use line::{Line, next_line};
 mod trim;
 use trim::{trimmed_range_start, trimmed_range_end};
 
-use crate::item::indexed::Item;
+use crate::item::indexed::*;
 use crate::whitespace::indexed::{Padding2, Padding4};
 
 pub struct Parser<'a> {
@@ -39,25 +39,25 @@ impl<'a> Iterator for Parser<'a> {
         
         let source_trimmed = &source[trimmed.clone()];
 
-        let item = match source_trimmed.chars().next() {
+        let item: Item = match source_trimmed.chars().next() {
             // Section key
             Some('[') => match source_trimmed.chars().last().unwrap() {
-                ']' => Item::Section {
+                ']' => SectionItem {
                     key: trimmed.start + 1..trimmed.end - 1,
                     padding: Padding2(ws_before, ws_after),
                     line_ending,
-                },
-                _ => Item::Error {
+                }.into(),
+                _ => ErrorItem {
                     line: full,
                     line_ending,
-                }
+                }.into(),
             },
             // Comment
-            Some(';') => Item::Comment {
+            Some(';') => CommentItem {
                 comment: trimmed.start + 1..trimmed.end,
                 padding: Padding2(ws_before, ws_after),
                 line_ending,
-            },
+            }.into(),
             // Property
             Some(_) => match memchr::memchr(b'=', source_trimmed.as_bytes()) {
                 Some(mut eq_index) => {
@@ -72,23 +72,23 @@ impl<'a> Iterator for Parser<'a> {
                         let start_trimmed = eq_index + 1 + trimmed_range_start(untrimmed);
                         (start_trimmed..trimmed.end, eq_index + 1..start_trimmed)
                     };
-                    Item::Property {
+                    PropertyItem {
                         key,
                         value,
                         padding: Padding4(ws_before, before_eq, after_eq, ws_after),
                         line_ending,
-                    }
+                    }.into()
                 },
-                None => Item::Error {
+                None => ErrorItem {
                     line: full,
                     line_ending,
-                },
+                }.into(),
             },
             // Blank
-            None => Item::Blank {
+            None => BlankItem {
                 line: full,
                 line_ending,
-            },
+            }.into(),
         };
 
         self.next_offset = next_offset;
@@ -101,7 +101,7 @@ mod tests {
     use super::*;
     use crate::whitespace::LineEnding;
     use crate::whitespace::owned::{Padding2 as OwnedPadding2, Padding4 as OwnedPadding4};
-    use crate::item::owned::Item as OwnedItem;
+    use crate::item::owned;
     
     macro_rules! padding {
         ($p1:literal, $p2:literal) => {
@@ -122,11 +122,11 @@ mod tests {
 
     macro_rules! section {
         ($key:literal, pad=$padding:expr, end=$ending:expr) => {
-            OwnedItem::Section {
+            owned::Item::Section(owned::SectionItem {
                 key: $key.to_owned(),
                 padding: $padding,
                 line_ending: $ending,
-            }
+            })
         };
         ($key:literal, end=$ending:expr) => {
             section!($key, pad=OwnedPadding2::default(), end=$ending)
@@ -141,12 +141,12 @@ mod tests {
 
     macro_rules! prop {
         ($key:literal => $value:literal, pad=$padding:expr, end=$ending:expr) => {
-            OwnedItem::Property {
+            owned::Item::Property(owned::PropertyItem {
                 key: $key.to_owned(),
                 value: $value.to_owned(),
                 padding: $padding,
                 line_ending: $ending,
-            }
+            })
         };
         ($key:literal => $value:literal, end=$ending:expr) => {
             prop!($key => $value, pad=OwnedPadding4::default(), end=$ending)
@@ -161,11 +161,11 @@ mod tests {
 
     macro_rules! comment {
         ($comment:literal, pad=$padding:expr, end=$ending:expr) => {
-            OwnedItem::Comment {
+            owned::Item::Comment(owned::CommentItem {
                 comment: $comment.to_owned(),
                 padding: $padding,
                 line_ending: $ending,
-            }
+            })
         };
         ($comment:literal, end=$ending:expr) => {
             comment!($comment, pad=OwnedPadding2::default(), end=$ending)
@@ -180,10 +180,10 @@ mod tests {
 
     macro_rules! blank {
         ($line:literal, end=$ending:expr) => {
-            OwnedItem::Blank {
+            owned::Item::Blank(owned::BlankItem {
                 line: $line.to_owned(),
                 line_ending: $ending,
-            }
+            })
         };
         ($line:literal) => {
             blank!($line, end=LineEnding::default())
@@ -195,10 +195,10 @@ mod tests {
 
     macro_rules! error {
         ($line:literal, end=$ending:expr) => {
-            OwnedItem::Error {
+            owned::Item::Error(owned::ErrorItem {
                 line: $line.to_owned(),
                 line_ending: $ending,
-            }
+            })
         };
         ($line:literal) => {
             error!($line, end=LineEnding::default())
