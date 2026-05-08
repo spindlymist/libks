@@ -1,6 +1,6 @@
 mod section;
 mod ini;
-mod item;
+pub mod item;
 mod parse;
 mod span;
 
@@ -8,4 +8,3 @@ pub use ini::Ini;
 pub use parse::Parser;
 pub use section::VirtualSection;
 pub use section::Section;
-pub use item;
