@@ -1,6 +1,7 @@
-mod parse;
-mod item;
-mod whitespace;
+pub mod parse;
+pub mod edit;
+pub mod item;
+pub mod whitespace;
 
 // pub use ini::Ini;
 pub use parse::Parser;
