@@ -19,13 +19,13 @@ impl SectionMap {
     }
     
     pub fn get<K: AsRef<str>>(&self, key: K) -> Option<&[usize]> {
-        assert!(!self.is_dirty);
+        debug_assert!(!self.is_dirty);
         self.map.get(&key.as_ref().to_ascii_lowercase())
             .map(Vec::as_slice)
     }
     
     pub fn has<K: AsRef<str>>(&self, key: K) -> bool {
-        assert!(!self.is_dirty);
+        debug_assert!(!self.is_dirty);
         self.map.contains_key(&key.as_ref().to_ascii_lowercase())
     }
     
@@ -49,6 +49,7 @@ impl SectionMap {
             self.is_dirty = true;
             return;
         }
+        debug_assert!(!self.is_dirty);
         
         self.map.entry(key.as_ref().to_ascii_lowercase())
             .and_modify(|indices| indices.push(index))
@@ -60,6 +61,7 @@ impl SectionMap {
             self.is_dirty = true;
             return;
         }
+        debug_assert!(!self.is_dirty);
         
         // All indices after the insert index shift forward 1
         for (_, indices) in self.map.iter_mut() {
@@ -88,6 +90,7 @@ impl SectionMap {
             self.is_dirty = true;
             return;
         }
+        debug_assert!(!self.is_dirty);
         
         // Remove the old index from the map
         let key_lower = key.as_ref().to_ascii_lowercase();
@@ -120,6 +123,7 @@ impl SectionMap {
             self.is_dirty = true;
             return;
         }
+        debug_assert!(!self.is_dirty);
         
         // Delete the index under the old key
         let key_from_lower = key_from.as_ref().to_ascii_lowercase();
@@ -151,5 +155,248 @@ fn insert_in_order(indices: &mut Vec<usize>, i: usize) {
     match indices.iter().position(|j| *j > i) {
         Some(j) => indices.insert(j, i),
         None => indices.push(i),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Parser, item::Item, test_macros::*};
+    
+    macro_rules! expect {
+        ($map:expr, $expected:expr) => {
+            let mut items: Vec<_> = $map.map.into_iter()
+                .collect();
+            items.sort_by(|a, b| a.0.cmp(&b.0));
+            for (i, (key, indices)) in items.into_iter().enumerate() {
+                assert_eq!(key, $expected[i].0);
+                assert_eq!(indices, $expected[i].1);
+            }
+        }
+    }
+    
+    const DUPLICATES: &'static str = before!("duplicates.ini");
+    
+    fn load_from_source(source: &str) -> (SectionMap, Vec<Section>) {
+        let sections: Vec<_> = Parser::new(source)
+            .filter_map(|item| match item {
+                Item::Section(header) => Some(Section::from_header(header)),
+                _ => None,
+            })
+            .collect();
+        let mut map = SectionMap::new();
+        map.rebuild(&sections, source);
+        (map, sections)
+    }
+    
+    #[test]
+    fn rebuild_works() {
+        let (map, _) = load_from_source(DUPLICATES);
+        expect!(map, [
+            ("section 0", [0, 3, 6]),
+            ("section 1", [1, 4, 7]),
+            ("section 2", [2, 5, 8]),
+        ]);
+    }
+    
+    #[test]
+    fn get_works() {
+        let (map, _) = load_from_source(DUPLICATES);
+        assert_eq!(map.get("Section 0"), Some([0, 3, 6].as_slice()));
+        assert_eq!(map.get("secTION 0"), Some([0, 3, 6].as_slice()));
+        assert_eq!(map.get("section 4"), None);
+    }
+    
+    #[test]
+    fn has_works() {
+        let (map, _) = load_from_source(DUPLICATES);
+        assert_eq!(map.has("Section 0"), true);
+        assert_eq!(map.has("secTION 0"), true);
+        assert_eq!(map.has("section 4"), false);
+    }
+    
+    #[test]
+    fn update_after_append_works() {
+        let (map, sections) = load_from_source(DUPLICATES);
+        // Append new section
+        {
+            let mut map = map.clone();
+            map.update_after_append("section 4", sections.len());
+            expect!(map, [
+                ("section 0", vec![0, 3, 6]),
+                ("section 1", vec![1, 4, 7]),
+                ("section 2", vec![2, 5, 8]),
+                ("section 4", vec![9]),
+            ]);
+        }
+        // Append existing section
+        {
+            let mut map = map.clone();
+            map.update_after_append("section 0", sections.len());
+            expect!(map.clone(), [
+                ("section 0", vec![0, 3, 6, 9]),
+                ("section 1", vec![1, 4, 7]),
+                ("section 2", vec![2, 5, 8]),
+            ]);
+        }
+    }
+    
+    #[test]
+    fn update_after_insert_works() {
+        let (map, sections) = load_from_source(DUPLICATES);
+        // Insert new section, start
+        {
+            let mut map = map.clone();
+            map.update_after_insert("section 4", 0);
+            expect!(map, [
+                ("section 0", vec![1, 4, 7]),
+                ("section 1", vec![2, 5, 8]),
+                ("section 2", vec![3, 6, 9]),
+                ("section 4", vec![0]),
+            ]);
+        }
+        // Insert new section, middle
+        {
+            let mut map = map.clone();
+            map.update_after_insert("section 4", 5);
+            expect!(map, [
+                ("section 0", vec![0, 3, 7]),
+                ("section 1", vec![1, 4, 8]),
+                ("section 2", vec![2, 6, 9]),
+                ("section 4", vec![5]),
+            ]);
+        }
+        // Insert new section, end
+        {
+            let mut map = map.clone();
+            map.update_after_insert("section 4", sections.len());
+            expect!(map, [
+                ("section 0", vec![0, 3, 6]),
+                ("section 1", vec![1, 4, 7]),
+                ("section 2", vec![2, 5, 8]),
+                ("section 4", vec![9]),
+            ]);
+        }
+        // Insert existing section, first of its name
+        {
+            let mut map = map.clone();
+            map.update_after_insert("section 0", 0);
+            expect!(map, [
+                ("section 0", vec![0, 1, 4, 7]),
+                ("section 1", vec![2, 5, 8]),
+                ("section 2", vec![3, 6, 9]),
+            ]);
+        }
+        // Insert existing section, middle of its name
+        {
+            let mut map = map.clone();
+            map.update_after_insert("section 0", 5);
+            expect!(map, [
+                ("section 0", vec![0, 3, 5, 7]),
+                ("section 1", vec![1, 4, 8]),
+                ("section 2", vec![2, 6, 9]),
+            ]);
+        }
+        // Insert existing section, last of its name
+        {
+            let mut map = map.clone();
+            map.update_after_insert("section 0", sections.len());
+            expect!(map, [
+                ("section 0", vec![0, 3, 6, 9]),
+                ("section 1", vec![1, 4, 7]),
+                ("section 2", vec![2, 5, 8]),
+            ]);
+        }
+    }
+    
+    #[test]
+    fn update_after_remove_works() {
+        let (map, _) = load_from_source(DUPLICATES);
+        // Delete section, first of its name
+        {
+            let mut map = map.clone();
+            map.update_after_remove("section 0", 0);
+            expect!(map, [
+                ("section 0", vec![2, 5]),
+                ("section 1", vec![0, 3, 6]),
+                ("section 2", vec![1, 4, 7]),
+            ]);
+        }
+        // Delete section, middle of its name
+        {
+            let mut map = map.clone();
+            map.update_after_remove("section 0", 3);
+            expect!(map, [
+                ("section 0", vec![0, 5]),
+                ("section 1", vec![1, 3, 6]),
+                ("section 2", vec![2, 4, 7]),
+            ]);
+        }
+        // Delete section, last of its name
+        {
+            let mut map = map.clone();
+            map.update_after_remove("section 0", 6);
+            expect!(map, [
+                ("section 0", vec![0, 3]),
+                ("section 1", vec![1, 4, 6]),
+                ("section 2", vec![2, 5, 7]),
+            ]);
+        }
+        // If the section was unique, the key is removed from the map
+        {
+            let mut map = map.clone();
+            map.update_after_remove("section 0", 6);
+            map.update_after_remove("section 0", 3);
+            map.update_after_remove("section 0", 0);
+            expect!(map, [
+                ("section 1", vec![0, 2, 4]),
+                ("section 2", vec![1, 3, 5]),
+            ]);
+        }
+    }
+    
+    #[test]
+    fn update_after_rename_works() {
+        let (map, sections) = load_from_source(DUPLICATES);
+        // Renamed section is new
+        {
+            let mut map = map.clone();
+            map.update_after_rename(3, "section 0", "section 4");
+            expect!(map, [
+                ("section 0", vec![0, 6]),
+                ("section 1", vec![1, 4, 7]),
+                ("section 2", vec![2, 5, 8]),
+                ("section 4", vec![3]),
+            ]);
+        }
+        // Renamed section merges with existing section
+        {
+            let mut map = map.clone();
+            map.update_after_rename(3, "section 0", "section 1");
+            expect!(map, [
+                ("section 0", vec![0, 6]),
+                ("section 1", vec![1, 3, 4, 7]),
+                ("section 2", vec![2, 5, 8]),
+            ]);
+        }
+        // If the section was unique, the old key is removed from the map
+        {
+            let mut map = map.clone();
+            map.update_after_append("section 4", sections.len());
+            expect!(map.clone(), [
+                ("section 0", vec![0, 3, 6]),
+                ("section 1", vec![1, 4, 7]),
+                ("section 2", vec![2, 5, 8]),
+                ("section 4", vec![9]),
+            ]);
+            
+            map.update_after_rename(sections.len(), "section 4", "section 5");
+            expect!(map, [
+                ("section 0", vec![0, 3, 6]),
+                ("section 1", vec![1, 4, 7]),
+                ("section 2", vec![2, 5, 8]),
+                ("section 5", vec![9]),
+            ]);
+        }
     }
 }

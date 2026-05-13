@@ -8,3 +8,6 @@ pub mod span;
 pub use parse::Parser;
 // pub use section::VirtualSection;
 // pub use section::Section;
+
+#[cfg(test)]
+mod test_macros;

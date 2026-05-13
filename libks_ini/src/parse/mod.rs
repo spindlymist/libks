@@ -101,8 +101,8 @@ impl<'a> Iterator for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::whitespace::*;
-    use crate::item::macros::*;
+    use crate::whitespace::LineEnding;
+    use crate::test_macros::*;
 
     #[test]
     fn parser_works() {

@@ -365,3 +365,16 @@ impl<'a> Iterator for IniSectionsIterMut<'a> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_macros::*;
+
+    #[test]
+    fn round_trip_matches_exactly() {
+        const SOURCE: &'static str = before!("the_machine.ini");
+        let ini = Ini::from(SOURCE);
+        assert_eq!(ini.to_string(), SOURCE);
+    }
+}
