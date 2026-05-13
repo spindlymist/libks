@@ -158,10 +158,10 @@ where
             let Item::Property(prop) = item else { continue };
             let key = prop.key.to_str(self.source);
             let value = prop.value.to_str(self.source);
-            if self.keys_seen.contains(key) {
+            let key_lower = key.to_ascii_lowercase();
+            if !self.keys_seen.insert(key_lower) {
                 continue;
             }
-            self.keys_seen.insert(key.to_owned());
             return Some((key, value));
         }
         
