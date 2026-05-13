@@ -295,7 +295,7 @@ impl<'a> SectionWriter<'a> {
         }
     }
     
-    pub fn remove<K: AsRef<str>>(&mut self, key: K) {
+    pub fn unset<K: AsRef<str>>(&mut self, key: K) {
         for i in (0..self.items.len()).rev() {
             let Item::Property(prop) = &self.items[i] else { continue };
             if prop.key.to_str(self.source)

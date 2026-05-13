@@ -85,9 +85,9 @@ impl<'a> VirtualSectionMut<'a> {
         }
     }
 
-    pub fn remove<K: AsRef<str>>(&mut self, key: K) {
+    pub fn unset<K: AsRef<str>>(&mut self, key: K) {
         for section in &mut self.sections {
-            section.remove(key.as_ref());
+            section.unset(key.as_ref());
         }
     }
 
