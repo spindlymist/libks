@@ -154,20 +154,21 @@ where
     type Item = (&'a str, &'a str);
 
     fn next(&mut self) -> Option<Self::Item> {
-        for item in self.items.by_ref() {
-            let Item::Property(prop) = item else { continue };
-            let key = prop.key.to_str(self.source);
-            let value = prop.value.to_str(self.source);
-            let key_lower = key.to_ascii_lowercase();
-            if !self.keys_seen.insert(key_lower) {
-                continue;
+        loop {
+            for item in self.items.by_ref() {
+                let Item::Property(prop) = item else { continue };
+                let key = prop.key.to_str(self.source);
+                let value = prop.value.to_str(self.source);
+                let key_lower = key.to_ascii_lowercase();
+                if !self.keys_seen.insert(key_lower) {
+                    continue;
+                }
+                return Some((key, value));
             }
-            return Some((key, value));
+            
+            let next_section = self.sections.next()?;
+            self.items = next_section.iter_items().rev();
         }
-        
-        let next_section = self.sections.next()?;
-        self.items = next_section.iter_items().rev();
-        self.next()
     }
 }
 
