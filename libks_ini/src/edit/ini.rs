@@ -183,15 +183,15 @@ impl Ini {
         Some(VirtualSectionMut::new(sections))
     }
     
-    pub fn insert_section<K: Into<String>>(&mut self, index: usize, key: K) -> &mut Section {
+    pub fn insert_section<K: Into<String>>(&mut self, index: usize, key: K) -> SectionWriter<'_> {
         let key = key.into();
         self.section_map.update_after_insert(&key, index);
         let section = Section::new(key, self.line_ending);
         self.sections.insert(index, section);
-        &mut self.sections[index]
+        SectionWriter::new(&mut self.sections[index], &self.source)
     }
     
-    pub fn append_section<K: Into<String>>(&mut self, key: K) -> &mut Section {
+    pub fn append_section<K: Into<String>>(&mut self, key: K) -> SectionWriter<'_> {
         let key = key.into();
         let index = self.sections.len();
         self.section_map.update_after_append(&key, index);
@@ -199,7 +199,7 @@ impl Ini {
         let section = Section::new(key, self.line_ending);
         self.sections.push(section);
         
-        &mut self.sections[index]
+        SectionWriter::new(&mut self.sections[index], &self.source)
     }
     
     pub fn remove_section_at(&mut self, index: usize) -> Section {
@@ -305,13 +305,10 @@ impl<'a> From<String> for Ini {
 impl fmt::Display for Ini {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for item in self.global_section.iter_items() {
-            item.fmt_with_source(f, &self.source)?;
+            item.with_source(&self.source).fmt(f)?;
         }
         for section in self.iter_sections() {
-            section.header.fmt_with_source(f, &self.source)?;
-            for item in section.iter_items() {
-                item.fmt_with_source(f, &self.source)?;
-            }
+            section.fmt(f)?;
         }
         Ok(())
     }

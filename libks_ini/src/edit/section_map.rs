@@ -20,13 +20,13 @@ impl SectionMap {
     
     pub fn get<K: AsRef<str>>(&self, key: K) -> Option<&[usize]> {
         assert!(!self.is_dirty);
-        self.map.get(key.as_ref())
+        self.map.get(&key.as_ref().to_ascii_lowercase())
             .map(Vec::as_slice)
     }
     
     pub fn has<K: AsRef<str>>(&self, key: K) -> bool {
         assert!(!self.is_dirty);
-        self.map.contains_key(key.as_ref())
+        self.map.contains_key(&key.as_ref().to_ascii_lowercase())
     }
     
     pub fn rebuild(&mut self, sections: &[Section], source: &str) {
