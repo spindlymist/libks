@@ -8,7 +8,7 @@ pub enum Span {
 
 impl Default for Span {
     fn default() -> Self {
-        Self::Range(0..0)
+        Self::from("")
     }
 }
 

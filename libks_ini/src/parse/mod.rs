@@ -307,7 +307,7 @@ ShiftSound(A)=None\r\n\
             section!("World", end=LineEnding::Lf),
             prop!("Name" => "The Machine", end=LineEnding::CrLf),
             prop!("Author" => "Nifflas", end=LineEnding::Cr),
-            blank!("     "),
+            blank!("     ", end=LineEnding::Lf),
             section!("x1000y1000", end=LineEnding::CrLf),
             prop!("ShiftVisible(A)" => "False", end=LineEnding::Cr),
             prop!("ShiftEffect(A)" => "False", end=LineEnding::Lf),
