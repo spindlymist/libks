@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::fmt;
 use std::ops::{Deref, DerefMut};
 
 use crate::{
@@ -192,6 +193,16 @@ impl<'a> IntoIterator for &'a SectionReader<'a> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter_props()
+    }
+}
+
+impl<'a> fmt::Display for SectionReader<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.header.with_source(self.source).fmt(f)?;
+        for item in &self.items {
+            item.with_source(self.source).fmt(f)?;
+        }
+        Ok(())
     }
 }
 
