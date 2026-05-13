@@ -1,51 +1,28 @@
-pub mod indexed {
-    use std::ops::Range;
-    use super::owned;
+use crate::span::Span;
     
-    #[derive(Debug, Clone, PartialEq, Eq, Default)]
-    pub struct Padding2(pub Range<usize>, pub Range<usize>);
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Padding2(pub Span, pub Span);
 
-    impl Padding2 {
-        pub fn into_owned(self, source: &str) -> owned::Padding2 {
-            owned::Padding2(
-                source[self.0].to_owned(),
-                source[self.1].to_owned(),
-            )
-        }
-    }
-    
-    #[derive(Debug, Clone, PartialEq, Eq, Default)]
-    pub struct Padding4(pub Range<usize>, pub Range<usize>, pub Range<usize>, pub Range<usize>);
-    
-    impl Padding4 {
-        pub fn into_owned(self, source: &str) -> owned::Padding4 {
-            owned::Padding4(
-                source[self.0].to_owned(),
-                source[self.1].to_owned(),
-                source[self.2].to_owned(),
-                source[self.3].to_owned(),
-            )
-        }
+impl Padding2 {
+    pub fn into_owned<S: AsRef<str>>(self, source: S) -> Padding2 {
+        Padding2(
+            self.0.into_owned(source.as_ref()),
+            self.1.into_owned(source.as_ref()),
+        )
     }
 }
 
-pub mod owned {
-    #[derive(Debug, Clone, PartialEq, Eq, Default)]
-    pub struct Padding2(pub String, pub String);
-    
-    impl Padding2 {
-        pub fn from_indexed(source: &str, indexed: super::indexed::Padding2) -> Self {
-            indexed.into_owned(source)
-        }
-    }
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Padding4(pub Span, pub Span, pub Span, pub Span);
 
-    #[derive(Debug, Clone, PartialEq, Eq, Default)]
-    pub struct Padding4(pub String, pub String, pub String, pub String);
-    
-    impl Padding4 {
-        pub fn from_indexed(source: &str, indexed: super::indexed::Padding4) -> Self {
-            indexed.into_owned(source)
-        }
+impl Padding4 {
+    pub fn into_owned<S: AsRef<str>>(self, source: S) -> Padding4 {
+        Padding4(
+            self.0.into_owned(source.as_ref()),
+            self.1.into_owned(source.as_ref()),
+            self.2.into_owned(source.as_ref()),
+            self.3.into_owned(source.as_ref()),
+        )
     }
 }
 

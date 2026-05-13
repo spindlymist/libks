@@ -7,8 +7,6 @@ use super::trim::trimmed_range;
 pub struct Line {
     pub full: Range<usize>,
     pub trimmed: Range<usize>,
-    pub ws_before: Range<usize>,
-    pub ws_after: Range<usize>,
     pub next_offset: Option<usize>,
     pub line_ending: LineEnding,
 }
@@ -43,13 +41,14 @@ pub fn next_line(s: &str, offset: usize) -> Line {
         next_offset = None;
     }
 
-    let (start_trimmed, end_trimmed) = trimmed_range(&s[offset..end]);
+    let trimmed = {
+        let (start_trimmed, end_trimmed) = trimmed_range(&s[offset..end]);
+        start_trimmed + offset..end_trimmed + offset
+    };
 
     Line {
         full: offset..end,
-        trimmed: (start_trimmed + offset)..(end_trimmed + offset),
-        ws_before: offset..(start_trimmed + offset),
-        ws_after: (end_trimmed + offset)..end,
+        trimmed,
         next_offset,
         line_ending,
     }
@@ -67,8 +66,6 @@ mod tests {
         assert_eq!(next_line(s, 0), Line {
             full: 0..HW_LEN,
             trimmed: 0..HW_LEN,
-            ws_before: 0..0,
-            ws_after: HW_LEN..HW_LEN,
             next_offset: Some(HW_LEN + 1),
             line_ending: LineEnding::Lf,
         });
@@ -80,8 +77,6 @@ mod tests {
         assert_eq!(next_line(s, 0), Line {
             full: 0..HW_LEN,
             trimmed: 0..HW_LEN,
-            ws_before: 0..0,
-            ws_after: HW_LEN..HW_LEN,
             next_offset: Some(HW_LEN + 1),
             line_ending: LineEnding::Cr,
         });
@@ -93,8 +88,6 @@ mod tests {
         assert_eq!(next_line(s, 0), Line {
             full: 0..HW_LEN,
             trimmed: 0..HW_LEN,
-            ws_before: 0..0,
-            ws_after: HW_LEN..HW_LEN,
             next_offset: Some(HW_LEN + 2),
             line_ending: LineEnding::CrLf,
         });
@@ -106,8 +99,6 @@ mod tests {
         assert_eq!(next_line(s, 0), Line {
             full: 0..HW_LEN,
             trimmed: 0..HW_LEN,
-            ws_before: 0..0,
-            ws_after: HW_LEN..HW_LEN,
             next_offset: None,
             line_ending: LineEnding::None,
         });
@@ -119,8 +110,6 @@ mod tests {
         assert_eq!(next_line(s, 0), Line {
             full: 0..HW_LEN,
             trimmed: 0..HW_LEN,
-            ws_before: 0..0,
-            ws_after: HW_LEN..HW_LEN,
             next_offset: Some(HW_LEN + 1),
             line_ending: LineEnding::Lf,
         });
@@ -136,8 +125,6 @@ mod tests {
         assert_eq!(next_line(s, 0), Line {
             full: 0..line_len,
             trimmed: pad_len..line_len - pad_len,
-            ws_before: 0..pad_len,
-            ws_after: line_len - pad_len..line_len,
             next_offset: Some(line_len + 1),
             line_ending: LineEnding::Lf,
         });

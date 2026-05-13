@@ -2,6 +2,7 @@ pub mod parse;
 pub mod edit;
 pub mod item;
 pub mod whitespace;
+pub mod span;
 
 // pub use ini::Ini;
 pub use parse::Parser;

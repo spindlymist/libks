@@ -4,8 +4,9 @@ use line::{Line, next_line};
 mod trim;
 use trim::{trimmed_range_start, trimmed_range_end};
 
-use crate::item::indexed::*;
-use crate::whitespace::indexed::{Padding2, Padding4};
+use crate::item::*;
+use crate::span::Span;
+use crate::whitespace::{Padding2, Padding4};
 
 pub struct Parser<'a> {
     source: &'a str,
@@ -26,69 +27,70 @@ impl<'a> Iterator for Parser<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let source = self.source;
-        let next_offset = self.next_offset?;
+        let offset = self.next_offset?;
         
         let Line {
             full,
             trimmed,
-            ws_before,
-            ws_after,
             next_offset,
             line_ending,
-        } = next_line(source, next_offset);
+        } = next_line(source, offset);
         
-        let source_trimmed = &source[trimmed.clone()];
+        let line_trimmed = &source[trimmed.clone()];
+        let ws_before = Span::from(full.start..trimmed.start);
+        let ws_after = Span::from(trimmed.end..full.end);
 
-        let item: Item = match source_trimmed.chars().next() {
+        let item: Item = match line_trimmed.chars().next() {
             // Section key
-            Some('[') => match source_trimmed.chars().last().unwrap() {
-                ']' => SectionItem {
-                    key: trimmed.start + 1..trimmed.end - 1,
+            Some('[') => match line_trimmed.chars().last().unwrap() {
+                ']' => Item::Section(SectionItem {
+                    key: Span::from(trimmed.start + 1..trimmed.end - 1),
                     padding: Padding2(ws_before, ws_after),
                     line_ending,
-                }.into(),
-                _ => ErrorItem {
-                    line: full,
+                }),
+                _ => Item::Error(ErrorItem {
+                    line: Span::from(full),
                     line_ending,
-                }.into(),
+                }),
             },
             // Comment
-            Some(';') => CommentItem {
-                comment: trimmed.start + 1..trimmed.end,
+            Some(';') => Item::Comment(CommentItem {
+                comment: Span::from(trimmed.start + 1..trimmed.end),
                 padding: Padding2(ws_before, ws_after),
                 line_ending,
-            }.into(),
+            }),
             // Property
-            Some(_) => match memchr::memchr(b'=', source_trimmed.as_bytes()) {
+            Some(_) => match memchr::memchr(b'=', line_trimmed.as_bytes()) {
                 Some(mut eq_index) => {
                     eq_index += trimmed.start;
-                    let (key, before_eq) = {
-                        let untrimmed = &source[trimmed.start..eq_index];
-                        let end_trimmed = trimmed.start + trimmed_range_end(untrimmed);
-                        (trimmed.start..end_trimmed, end_trimmed..eq_index)
-                    };
-                    let (value, after_eq) = {
-                        let untrimmed = &source[eq_index + 1..trimmed.end];
-                        let start_trimmed = eq_index + 1 + trimmed_range_start(untrimmed);
-                        (start_trimmed..trimmed.end, eq_index + 1..start_trimmed)
-                    };
-                    PropertyItem {
+                    
+                    let key_untrimmed = &source[trimmed.start..eq_index];
+                    let key_end = trimmed.start + trimmed_range_end(key_untrimmed);
+                    let key = Span::from(trimmed.start..key_end);
+                    let before_eq = Span::from(key_end..eq_index);
+                    
+                    let value_untrimmed = &source[eq_index + 1..trimmed.end];
+                    let value_start = eq_index + 1 + trimmed_range_start(value_untrimmed);
+                    let value = Span::from(value_start..trimmed.end);
+                    let after_eq = Span::from(eq_index + 1..value_start);
+                    
+                    Item::Property(PropertyItem {
                         key,
                         value,
                         padding: Padding4(ws_before, before_eq, after_eq, ws_after),
                         line_ending,
-                    }.into()
+                    })
                 },
-                None => ErrorItem {
-                    line: full,
+                None => Item::Error(ErrorItem {
+                    line: Span::from(full),
                     line_ending,
-                }.into(),
+                }),
             },
             // Blank
-            None => BlankItem {
-                line: full,
+            None => Item::Blank(BlankItem {
+                line: Span::from(full),
                 line_ending,
-            }.into(),
+            }),
         };
 
         self.next_offset = next_offset;
@@ -99,89 +101,87 @@ impl<'a> Iterator for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::whitespace::LineEnding;
-    use crate::whitespace::owned::{Padding2 as OwnedPadding2, Padding4 as OwnedPadding4};
-    use crate::item::owned;
+    use crate::whitespace::*;
     
     macro_rules! padding {
         ($p1:literal, $p2:literal) => {
-            OwnedPadding2(
-                const_str::repeat!(" ", $p1).to_owned(),
-                const_str::repeat!(" ", $p2).to_owned(),
+            Padding2(
+                const_str::repeat!(" ", $p1).into(),
+                const_str::repeat!(" ", $p2).into(),
             )
         };
         ($p1:literal, $p2:literal, $p3:literal, $p4:literal) => {
-            OwnedPadding4(
-                const_str::repeat!(" ", $p1).to_owned(),
-                const_str::repeat!(" ", $p2).to_owned(),
-                const_str::repeat!(" ", $p3).to_owned(),
-                const_str::repeat!(" ", $p4).to_owned(),
+            Padding4(
+                const_str::repeat!(" ", $p1).into(),
+                const_str::repeat!(" ", $p2).into(),
+                const_str::repeat!(" ", $p3).into(),
+                const_str::repeat!(" ", $p4).into(),
             )
         };
     }
 
     macro_rules! section {
         ($key:literal, pad=$padding:expr, end=$ending:expr) => {
-            owned::Item::Section(owned::SectionItem {
-                key: $key.to_owned(),
+            Item::Section(SectionItem {
+                key: $key.into(),
                 padding: $padding,
                 line_ending: $ending,
             })
         };
         ($key:literal, end=$ending:expr) => {
-            section!($key, pad=OwnedPadding2::default(), end=$ending)
+            section!($key, pad=Padding2::default(), end=$ending)
         };
         ($key:literal, pad=$padding:expr) => {
             section!($key, pad=$padding, end=LineEnding::default())
         };
         ($key:literal) => {
-            section!($key, pad=OwnedPadding2::default(), end=LineEnding::default())
+            section!($key, pad=Padding2::default(), end=LineEnding::default())
         };
     }
 
     macro_rules! prop {
         ($key:literal => $value:literal, pad=$padding:expr, end=$ending:expr) => {
-            owned::Item::Property(owned::PropertyItem {
-                key: $key.to_owned(),
-                value: $value.to_owned(),
+            Item::Property(PropertyItem {
+                key: $key.into(),
+                value: $value.into(),
                 padding: $padding,
                 line_ending: $ending,
             })
         };
         ($key:literal => $value:literal, end=$ending:expr) => {
-            prop!($key => $value, pad=OwnedPadding4::default(), end=$ending)
+            prop!($key => $value, pad=Padding4::default(), end=$ending)
         };
         ($key:literal => $value:literal, pad=$padding:expr) => {
             prop!($key => $value, pad=$padding, end=LineEnding::default())
         };
         ($key:literal => $value:literal) => {
-            prop!($key => $value, pad=OwnedPadding4::default(), end=LineEnding::default())
+            prop!($key => $value, pad=Padding4::default(), end=LineEnding::default())
         };
     }
 
     macro_rules! comment {
         ($comment:literal, pad=$padding:expr, end=$ending:expr) => {
-            owned::Item::Comment(owned::CommentItem {
-                comment: $comment.to_owned(),
+            Item::Comment(CommentItem {
+                comment: $comment.into(),
                 padding: $padding,
                 line_ending: $ending,
             })
         };
         ($comment:literal, end=$ending:expr) => {
-            comment!($comment, pad=OwnedPadding2::default(), end=$ending)
+            comment!($comment, pad=Padding2::default(), end=$ending)
         };
         ($comment:literal, pad=$padding:expr) => {
             comment!($comment, pad=$padding, end=LineEnding::default())
         };
         ($comment:literal) => {
-            comment!($comment, pad=OwnedPadding2::default(), end=LineEnding::default())
+            comment!($comment, pad=Padding2::default(), end=LineEnding::default())
         };
     }
 
     macro_rules! blank {
         ($line:literal, end=$ending:expr) => {
-            owned::Item::Blank(owned::BlankItem {
-                line: $line.to_owned(),
+            Item::Blank(BlankItem {
+                line: $line.into(),
                 line_ending: $ending,
             })
         };
@@ -195,8 +195,8 @@ mod tests {
 
     macro_rules! error {
         ($line:literal, end=$ending:expr) => {
-            owned::Item::Error(owned::ErrorItem {
-                line: $line.to_owned(),
+            Item::Error(ErrorItem {
+                line: $line.into(),
                 line_ending: $ending,
             })
         };

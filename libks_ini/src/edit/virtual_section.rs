@@ -1,139 +1,188 @@
-use super::Section;
+use std::collections::HashSet;
 
+use crate::item::Item;
+
+use super::section::{SectionReader, SectionWriter};
+
+#[derive(Debug)]
 pub struct VirtualSection<'a> {
-    key: String,
-    sections: &'a [Section],
-    indices: Vec<usize>,
-    unexplored_range_end: usize,
+    sections: Vec<SectionReader<'a>>,
+}
+
+#[derive(Debug)]
+pub struct VirtualSectionMut<'a> {
+    sections: Vec<SectionWriter<'a>>,
 }
 
 impl<'a> VirtualSection<'a> {
-    pub fn new<K>(key: K, sections: &'a [Section]) -> Option<Self>
-    where
-        K: AsRef<str> + Into<String>
-    {
-        let index = find_last_section(key.as_ref(), sections)?;
-        Some(Self {
-            key: key.into(),
+    pub fn new(sections: Vec<SectionReader<'a>>) -> Self {
+        Self {
             sections,
-            indices: vec![index],
-            unexplored_range_end: index,
-        })
-    }
-    
-    fn next_section(&mut self) -> Option<usize> {
-        if self.unexplored_range_end == 0 {
-            return None;
         }
-        
-        let unexplored = &self.sections[..self.unexplored_range_end];
-        let index = find_last_section(&self.key, unexplored)?;
-        self.indices.push(index);
-        self.unexplored_range_end = index;
-        
-        Some(index)
     }
-    
-    pub fn has<K: AsRef<str>>(&mut self, key: K) -> bool {
-        self.get(key).is_some()
-    }
-    
-    pub fn get<K: AsRef<str>>(&mut self, key: K) -> Option<&str> {
-        for &i in &self.indices {
-            if let Some(val) = self.sections[i].get(key.as_ref()) {
-                return Some(val);
-            }
-        }
-        while let Some(i) = self.next_section() {
-            if let Some(val) = self.sections[i].get(key.as_ref()) {
-                return Some(val);
-            }
-        }
-        None
-    }
-}
 
-pub struct VirtualSectionMut<'a> {
-    key: String,
-    sections: &'a mut [Section],
-    indices: Vec<usize>,
-    unexplored_range_end: usize,
+    pub fn key(&self) -> &'a str {
+        self.sections.last()
+            .map(|section| section.key())
+            .unwrap_or("")
+    }
+
+    pub fn has<K: AsRef<str>>(&self, key: K) -> bool {
+        self.sections.iter()
+            .rev()
+            .any(|section| section.has(key.as_ref()))
+    }
+
+    pub fn get<K: AsRef<str>>(&self, key: K) -> Option<&'a str> {
+        self.sections.iter()
+            .rev()
+            .find_map(|section| section.get(key.as_ref()))
+    }
+
+    pub fn iter_props(&'a self) -> VirtualSectionPropsIter<'a, SectionReader<'a>> {
+        VirtualSectionPropsIter::from(self)
+    }
 }
 
 impl<'a> VirtualSectionMut<'a> {
-    pub fn new<K>(key: K, sections: &'a mut [Section]) -> Option<Self>
-    where
-        K: AsRef<str> + Into<String>
-    {
-        let i = find_last_section(key.as_ref(), sections)?;
-        Some(Self {
-            key: key.into(),
+    pub fn new(sections: Vec<SectionWriter<'a>>) -> Self {
+        Self {
             sections,
-            indices: vec![i],
-            unexplored_range_end: i,
-        })
-    }
-    
-    fn next_section(&self) -> Option<usize> {
-        let unexplored = &self.sections[..self.unexplored_range_end];
-        if unexplored.is_empty() {
-            return None;
         }
-        let index = find_last_section(&self.key, unexplored)?;
-        Some(index)
     }
-    
-    pub fn has<K: AsRef<str>>(&mut self, key: K) -> bool {
-        self.get(key).is_some()
+
+    pub fn key(&'a self) -> &'a str {
+        self.sections.last()
+            .map(|section| section.key())
+            .unwrap_or("")
     }
-    
-    pub fn get<K: AsRef<str>>(&mut self, key: K) -> Option<&str> {
-        for &i in &self.indices {
-            if let Some(val) = self.sections[i].get(key.as_ref()) {
-                return Some(val);
-            }
-        }
-        while let Some(i) = self.next_section() {
-            // Borrow checker doesn't like this in next_section, so we do it here
-            self.indices.push(i);
-            self.unexplored_range_end = i;
-            
-            if let Some(val) = self.sections[i].get(key.as_ref()) {
-                return Some(val);
-            }
-        }
-        None
+
+    pub fn has<K: AsRef<str>>(&self, key: K) -> bool {
+        self.sections.iter()
+            .rev()
+            .any(|section| section.has(key.as_ref()))
     }
-    
+
+    pub fn get<K: AsRef<str>>(&'a self, key: K) -> Option<&'a str> {
+        self.sections.iter()
+            .rev()
+            .find_map(|section| section.get(key.as_ref()))
+    }
+
     pub fn set<K, V>(&mut self, key: K, value: V)
     where
         K: AsRef<str> + Into<String>,
-        V: Into<String>,
+        V: Into<String>
     {
-        let i = self.indices[0];
-        self.sections[i].set(key, value);
-    }
-    
-    pub fn remove<K: AsRef<str>>(&mut self, key: K) {
-        for &i in &self.indices {
-            self.sections[i].remove(key.as_ref());
+        let value = value.into();
+        for section in self.sections.iter_mut().rev() {
+            if section.replace(key.as_ref(), &value) {
+                return;
+            }
         }
-        while let Some(i) = self.next_section() {
-            // Borrow checker doesn't like this in next_section, so we do it here
-            self.indices.push(i);
-            self.unexplored_range_end = i;
-            
-            self.sections[i].remove(key.as_ref());
+        if let Some(section) = self.sections.last_mut() {
+            section.set(key, value);
+        }
+    }
+
+    pub fn remove<K: AsRef<str>>(&mut self, key: K) {
+        for section in &mut self.sections {
+            section.remove(key.as_ref());
+        }
+    }
+
+    pub fn iter_props(&'a self) -> VirtualSectionPropsIter<'a, SectionWriter<'a>> {
+        VirtualSectionPropsIter::from(self)
+    }
+}
+
+#[allow(private_bounds)]
+pub struct VirtualSectionPropsIter<'a, I>
+where
+    I: IterItems
+{
+    sections: std::iter::Rev<std::slice::Iter<'a, I>>,
+    items: std::iter::Rev<std::slice::Iter<'a, Item>>,
+    source: &'a str,
+    keys_seen: HashSet<String>,
+}
+
+impl<'a> From<&'a VirtualSection<'a>> for VirtualSectionPropsIter<'a, SectionReader<'a>> {
+    fn from(v_section: &'a VirtualSection<'a>) -> Self {
+        let mut sections = v_section.sections.iter().rev();
+        match sections.next() {
+            Some(section) => Self {
+                sections,
+                items: section.iter_items().rev(),
+                source: section.source,
+                keys_seen: HashSet::new(),
+            },
+            None => Self {
+                sections,
+                items: [].iter().rev(),
+                source: "",
+                keys_seen: HashSet::new(),
+            }
         }
     }
 }
 
-fn find_last_section(key: &str, sections: &[Section]) -> Option<usize> {
-    for i in (0..sections.len()).rev() {
-        if sections[i].key().eq_ignore_ascii_case(key.as_ref()) {
-            return Some(i);
+impl<'a> From<&'a VirtualSectionMut<'a>> for VirtualSectionPropsIter<'a, SectionWriter<'a>> {
+    fn from(v_section: &'a VirtualSectionMut<'a>) -> Self {
+        let mut sections = v_section.sections.iter().rev();
+        match sections.next() {
+            Some(section) => Self {
+                sections,
+                items: section.iter_items().rev(),
+                source: section.source,
+                keys_seen: HashSet::new(),
+            },
+            None => Self {
+                sections,
+                items: [].iter().rev(),
+                source: "",
+                keys_seen: HashSet::new(),
+            }
         }
     }
-    
-    None
+}
+
+impl<'a, I> Iterator for VirtualSectionPropsIter<'a, I>
+where
+    I: IterItems
+{
+    type Item = (&'a str, &'a str);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        for item in self.items.by_ref() {
+            let Item::Property(prop) = item else { continue };
+            let key = prop.key.to_str(self.source);
+            let value = prop.value.to_str(self.source);
+            if self.keys_seen.contains(key) {
+                continue;
+            }
+            self.keys_seen.insert(key.to_owned());
+            return Some((key, value));
+        }
+        
+        let next_section = self.sections.next()?;
+        self.items = next_section.iter_items().rev();
+        self.next()
+    }
+}
+
+trait IterItems {
+    fn iter_items(&self) -> std::slice::Iter<'_, Item>;
+}
+
+impl<'a> IterItems for SectionReader<'a> {
+    fn iter_items(&self) -> std::slice::Iter<'_, Item> {
+        self.section.iter_items()
+    }
+}
+
+impl<'a> IterItems for SectionWriter<'a> {
+    fn iter_items(&self) -> std::slice::Iter<'_, Item> {
+        self.section.iter_items()
+    }
 }
