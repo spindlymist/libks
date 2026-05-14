@@ -187,3 +187,230 @@ impl<'a> IterItems for SectionWriter<'a> {
         self.section.iter_items()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use crate::test_macros::*;
+    use crate::edit::Ini;
+    
+    #[test]
+    fn virtual_section_has_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let ini = Ini::from(SOURCE);
+
+        let section = ini.section("Section 0").unwrap();
+        assert!(section.has("Prop 0"));
+        assert!(section.has("Prop 1"));
+        assert!(section.has("Prop 2"));
+        assert!(!section.has("Prop 3"));
+        
+        let section = ini.section("Section 1").unwrap();
+        assert!(section.has("Prop 0"));
+        assert!(section.has("Prop 1"));
+        assert!(section.has("Prop 2"));
+        assert!(section.has("Prop 3"));
+        assert!(section.has("Prop 4"));
+        assert!(!section.has("Prop 5"));
+        
+        let section = ini.section("Section 2").unwrap();
+        assert!(section.has("Prop 0"));
+        assert!(section.has("Prop 1"));
+        assert!(section.has("Prop 2"));
+        assert!(!section.has("Prop 3"));
+    }
+    
+    #[test]
+    fn virtual_section_mut_has_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let mut ini = Ini::from(SOURCE);
+
+        let section = ini.section_mut("Section 0").unwrap();
+        assert!(section.has("Prop 0"));
+        assert!(section.has("Prop 1"));
+        assert!(section.has("Prop 2"));
+        assert!(!section.has("Prop 3"));
+        
+        let section = ini.section_mut("Section 1").unwrap();
+        assert!(section.has("Prop 0"));
+        assert!(section.has("Prop 1"));
+        assert!(section.has("Prop 2"));
+        assert!(section.has("Prop 3"));
+        assert!(section.has("Prop 4"));
+        assert!(!section.has("Prop 5"));
+        
+        let section = ini.section_mut("Section 2").unwrap();
+        assert!(section.has("Prop 0"));
+        assert!(section.has("Prop 1"));
+        assert!(section.has("Prop 2"));
+        assert!(!section.has("Prop 3"));
+    }
+    
+    #[test]
+    fn virtual_section_get_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let ini = Ini::from(SOURCE);
+
+        let section = ini.section("Section 0").unwrap();
+        assert_eq!(section.get("Prop 0"), Some("Section 0/Prop 0/Value 2"));
+        assert_eq!(section.get("Prop 1"), Some("Section 0/Prop 1/Value 1"));
+        assert_eq!(section.get("Prop 2"), Some("Section 0/Prop 2/Value 0"));
+        assert_eq!(section.get("Prop 3"), None);
+        
+        let section = ini.section("Section 1").unwrap();
+        assert_eq!(section.get("Prop 0"), Some("Section 1/Prop 0/Value 0"));
+        assert_eq!(section.get("Prop 1"), Some("Section 1/Prop 1/Value 0"));
+        assert_eq!(section.get("Prop 2"), Some("Section 1/Prop 2/Value 0"));
+        assert_eq!(section.get("Prop 3"), Some("Section 1/Prop 3/Value 0"));
+        assert_eq!(section.get("Prop 4"), Some("Section 1/Prop 4/Value 0"));
+        assert_eq!(section.get("Prop 5"), None);
+        
+        let section = ini.section("Section 2").unwrap();
+        assert_eq!(section.get("Prop 0"), Some("Section 2/Prop 0/Value 5"));
+        assert_eq!(section.get("Prop 1"), Some("Section 2/Prop 1/Value 3"));
+        assert_eq!(section.get("Prop 2"), Some("Section 2/Prop 2/Value 1"));
+        assert_eq!(section.get("Prop 3"), None);
+    }
+    
+    #[test]
+    fn virtual_section_mut_get_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let mut ini = Ini::from(SOURCE);
+
+        let section = ini.section_mut("Section 0").unwrap();
+        assert_eq!(section.get("Prop 0"), Some("Section 0/Prop 0/Value 2"));
+        assert_eq!(section.get("Prop 1"), Some("Section 0/Prop 1/Value 1"));
+        assert_eq!(section.get("Prop 2"), Some("Section 0/Prop 2/Value 0"));
+        assert_eq!(section.get("Prop 3"), None);
+        
+        let section = ini.section_mut("Section 1").unwrap();
+        assert_eq!(section.get("Prop 0"), Some("Section 1/Prop 0/Value 0"));
+        assert_eq!(section.get("Prop 1"), Some("Section 1/Prop 1/Value 0"));
+        assert_eq!(section.get("Prop 2"), Some("Section 1/Prop 2/Value 0"));
+        assert_eq!(section.get("Prop 3"), Some("Section 1/Prop 3/Value 0"));
+        assert_eq!(section.get("Prop 4"), Some("Section 1/Prop 4/Value 0"));
+        assert_eq!(section.get("Prop 5"), None);
+        
+        let section = ini.section_mut("Section 2").unwrap();
+        assert_eq!(section.get("Prop 0"), Some("Section 2/Prop 0/Value 5"));
+        assert_eq!(section.get("Prop 1"), Some("Section 2/Prop 1/Value 3"));
+        assert_eq!(section.get("Prop 2"), Some("Section 2/Prop 2/Value 1"));
+        assert_eq!(section.get("Prop 3"), None);
+    }
+    
+    #[test]
+    fn virtual_section_mut_set_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let mut ini = Ini::from(SOURCE);
+
+        let mut section = ini.section_mut("Section 0").unwrap();
+        section.set("Prop 0", "Section 0/Prop 0/Value X");
+        section.set("Prop 1", "Section 0/Prop 1/Value X");
+        section.set("Prop 2", "Section 0/Prop 2/Value X");
+        section.set("Prop 3", "Section 0/Prop 3/Value X");
+        
+        let mut section = ini.section_mut("Section 1").unwrap();
+        section.set("Prop 0", "Section 1/Prop 0/Value X");
+        section.set("Prop 1", "Section 1/Prop 1/Value X");
+        section.set("Prop 2", "Section 1/Prop 2/Value X");
+        section.set("Prop 3", "Section 1/Prop 3/Value X");
+        section.set("Prop 4", "Section 1/Prop 4/Value X");
+        section.set("Prop 5", "Section 1/Prop 5/Value X");
+        
+        let mut section = ini.section_mut("Section 2").unwrap();
+        section.set("Prop 0", "Section 2/Prop 0/Value X");
+        section.set("Prop 1", "Section 2/Prop 1/Value X");
+        section.set("Prop 2", "Section 2/Prop 2/Value X");
+        section.set("Prop 3", "Section 2/Prop 3/Value X");
+        
+        assert_eq!(ini.to_string(), after!("virtual_section_mut_set_works.ini"));
+    }
+    
+    #[test]
+    fn virtual_section_mut_unset_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let mut ini = Ini::from(SOURCE);
+
+        let mut section = ini.section_mut("Section 0").unwrap();
+        section.unset("Prop 0");
+        
+        let mut section = ini.section_mut("Section 1").unwrap();
+        section.unset("Prop 0");
+        
+        let mut section = ini.section_mut("Section 2").unwrap();
+        section.unset("Prop 0");
+        
+        assert_eq!(ini.to_string(), after!("virtual_section_mut_unset_works.ini"));
+    }
+    
+    #[test]
+    fn virtual_section_iter_props_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let ini = Ini::from(SOURCE);
+        
+        let section = ini.section("Section 0").unwrap();
+        let expected = HashMap::from([
+            ("prop 0", "Section 0/Prop 0/Value 2"),
+            ("PROP 1", "Section 0/Prop 1/Value 1"),
+            ("Prop 2", "Section 0/Prop 2/Value 0"),
+        ]);
+        let actual = HashMap::from_iter(section.iter_props());
+        assert_eq!(actual, expected);
+        
+        let section = ini.section("Section 1").unwrap();
+        let expected = HashMap::from([
+            ("prop 4", "Section 1/Prop 4/Value 0"),
+            ("PROP 3", "Section 1/Prop 3/Value 0"),
+            ("Prop 2", "Section 1/Prop 2/Value 0"),
+            ("Prop 1", "Section 1/Prop 1/Value 0"),
+            ("Prop 0", "Section 1/Prop 0/Value 0"),
+        ]);
+        let actual = HashMap::from_iter(section.iter_props());
+        assert_eq!(actual, expected);
+        
+        let section = ini.section("Section 2").unwrap();
+        let expected = HashMap::from([
+            ("prop 0", "Section 2/Prop 0/Value 5"),
+            ("PROP 1", "Section 2/Prop 1/Value 3"),
+            ("Prop 2", "Section 2/Prop 2/Value 1"),
+        ]);
+        let actual = HashMap::from_iter(section.iter_props());
+        assert_eq!(actual, expected);
+    }
+    
+    #[test]
+    fn virtual_section_mut_iter_props_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let mut ini = Ini::from(SOURCE);
+        
+        let section = ini.section_mut("Section 0").unwrap();
+        let expected = HashMap::from([
+            ("prop 0", "Section 0/Prop 0/Value 2"),
+            ("PROP 1", "Section 0/Prop 1/Value 1"),
+            ("Prop 2", "Section 0/Prop 2/Value 0"),
+        ]);
+        let actual = HashMap::from_iter(section.iter_props());
+        assert_eq!(actual, expected);
+        
+        let section = ini.section_mut("Section 1").unwrap();
+        let expected = HashMap::from([
+            ("prop 4", "Section 1/Prop 4/Value 0"),
+            ("PROP 3", "Section 1/Prop 3/Value 0"),
+            ("Prop 2", "Section 1/Prop 2/Value 0"),
+            ("Prop 1", "Section 1/Prop 1/Value 0"),
+            ("Prop 0", "Section 1/Prop 0/Value 0"),
+        ]);
+        let actual = HashMap::from_iter(section.iter_props());
+        assert_eq!(actual, expected);
+        
+        let section = ini.section_mut("Section 2").unwrap();
+        let expected = HashMap::from([
+            ("prop 0", "Section 2/Prop 0/Value 5"),
+            ("PROP 1", "Section 2/Prop 1/Value 3"),
+            ("Prop 2", "Section 2/Prop 2/Value 1"),
+        ]);
+        let actual = HashMap::from_iter(section.iter_props());
+        assert_eq!(actual, expected);
+    }
+}

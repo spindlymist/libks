@@ -334,6 +334,16 @@ impl<'a> IntoIterator for &'a SectionWriter<'a> {
     }
 }
 
+impl<'a> fmt::Display for SectionWriter<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.header.with_source(self.source).fmt(f)?;
+        for item in &self.items {
+            item.with_source(self.source).fmt(f)?;
+        }
+        Ok(())
+    }
+}
+
 pub struct SectionPropsIter<'a> {
     items: std::iter::Rev<std::slice::Iter<'a, Item>>,
     source: &'a str,
@@ -375,5 +385,273 @@ impl<'a> Iterator for SectionPropsIter<'a> {
             return Some((key, value));
         }
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+use super::*;
+    use crate::test_macros::*;
+    use crate::item::Item;
+    use crate::whitespace::LineEnding;
+    use crate::parse::Parser;
+    
+    const SOURCE: &'static str = "\
+[Section]
+; First set
+Prop 0=Prop 0/Value 0
+Prop 1=Prop 1/Value 0
+Prop 2=Prop 2/Value 0
+
+; Second set
+PROP 0=Prop 0/Value 1
+PROP 1=Prop 1/Value 1
+PROP 2=Prop 2/Value 1
+
+; Third set
+prop 0=Prop 0/Value 2
+prop 1=Prop 1/Value 2
+prop 2=Prop 2/Value 2
+
+error'd
+";
+    
+    fn parse_section(source: &str) -> Section {
+        let mut parser = Parser::new(source);
+        let mut section = match parser.next() {
+            Some(Item::Section(header)) => Section::from_header(header),
+            _ => panic!("Source must start with section"),
+        };
+        for item in parser {
+            match item {
+                Item::Section(_) => panic!("Source must contain only one section"),
+                _ => section.items.push(item),
+            }
+        }
+        section
+    }
+    
+    #[test]
+    fn section_reader_display_works() {
+        let section = parse_section(SOURCE);
+        let reader = SectionReader::new(&section, SOURCE);
+        
+        assert_eq!(reader.to_string(), SOURCE);
+    }
+    
+    #[test]
+    fn section_reader_has_works() {
+        let section = parse_section(SOURCE);
+        let reader = SectionReader::new(&section, SOURCE);
+        
+        assert!(reader.has("Prop 0"));
+        assert!(reader.has("Prop 1"));
+        assert!(reader.has("Prop 2"));
+        assert!(!reader.has("Prop 3"));
+    }
+    
+    #[test]
+    fn section_reader_get_works() {
+        let section = parse_section(SOURCE);
+        let reader = SectionReader::new(&section, SOURCE);
+        
+        assert_eq!(reader.get("Prop 0"), Some("Prop 0/Value 2"));
+        assert_eq!(reader.get("Prop 1"), Some("Prop 1/Value 2"));
+        assert_eq!(reader.get("Prop 2"), Some("Prop 2/Value 2"));
+        assert_eq!(reader.get("Prop 3"), None);
+    }
+    
+    #[test]
+    fn section_reader_iter_props_works() {
+        let section = parse_section(SOURCE);
+        let reader = SectionReader::new(&section, SOURCE);
+
+        let actual = HashMap::from_iter(reader.iter_props());
+        let expected = HashMap::from([
+            ("prop 0", "Prop 0/Value 2"),
+            ("prop 1", "Prop 1/Value 2"),
+            ("prop 2", "Prop 2/Value 2"),
+        ]);
+        assert_eq!(actual, expected);
+    }
+    
+    #[test]
+    fn section_writer_display_works() {
+        let mut section = parse_section(SOURCE);
+        let writer = SectionWriter::new(&mut section, SOURCE);
+        
+        assert_eq!(writer.to_string(), SOURCE);
+    }
+    
+    #[test]
+    fn section_writer_has_works() {
+        let mut section = parse_section(SOURCE);
+        let writer = SectionWriter::new(&mut section, SOURCE);
+        
+        assert!(writer.has("Prop 0"));
+        assert!(writer.has("Prop 1"));
+        assert!(writer.has("Prop 2"));
+        assert!(!writer.has("Prop 3"));
+    }
+    
+    #[test]
+    fn section_writer_get_works() {
+        let mut section = parse_section(SOURCE);
+        let writer = SectionWriter::new(&mut section, SOURCE);
+        
+        assert_eq!(writer.get("Prop 0"), Some("Prop 0/Value 2"));
+        assert_eq!(writer.get("Prop 1"), Some("Prop 1/Value 2"));
+        assert_eq!(writer.get("Prop 2"), Some("Prop 2/Value 2"));
+        assert_eq!(writer.get("Prop 3"), None);
+    }
+    
+    #[test]
+    fn section_writer_set_works() {
+        let section = parse_section(SOURCE);
+        // Update an existing prop
+        {
+            let mut section = section.clone();
+            let mut writer = SectionWriter::new(&mut section, SOURCE);
+            writer.set("Prop 0", "Prop 0/Value X");
+            let expected = [
+                comment!(" First set"),
+                prop!("Prop 0" => "Prop 0/Value 0"),
+                prop!("Prop 1" => "Prop 1/Value 0"),
+                prop!("Prop 2" => "Prop 2/Value 0"),
+                blank!(),
+                comment!(" Second set"),
+                prop!("PROP 0" => "Prop 0/Value 1"),
+                prop!("PROP 1" => "Prop 1/Value 1"),
+                prop!("PROP 2" => "Prop 2/Value 1"),
+                blank!(),
+                comment!(" Third set"),
+                prop!("prop 0" => "Prop 0/Value X"),
+                prop!("prop 1" => "Prop 1/Value 2"),
+                prop!("prop 2" => "Prop 2/Value 2"),
+                blank!(),
+                error!("error'd"),
+                blank!("", end=LineEnding::None),
+            ];
+            let actual = section.items.into_iter()
+                .map(|item| item.into_owned(SOURCE));
+            assert_eq_iter!(actual, expected);
+        }
+        // Insert a new prop
+        {
+            let mut section = section.clone();
+            let mut writer = SectionWriter::new(&mut section, SOURCE);
+            writer.set("Prop 3", "Prop 3/Value X");
+            let expected = [
+                comment!(" First set"),
+                prop!("Prop 0" => "Prop 0/Value 0"),
+                prop!("Prop 1" => "Prop 1/Value 0"),
+                prop!("Prop 2" => "Prop 2/Value 0"),
+                blank!(),
+                comment!(" Second set"),
+                prop!("PROP 0" => "Prop 0/Value 1"),
+                prop!("PROP 1" => "Prop 1/Value 1"),
+                prop!("PROP 2" => "Prop 2/Value 1"),
+                blank!(),
+                comment!(" Third set"),
+                prop!("prop 0" => "Prop 0/Value 2"),
+                prop!("prop 1" => "Prop 1/Value 2"),
+                prop!("prop 2" => "Prop 2/Value 2"),
+                blank!(),
+                error!("error'd"),
+                prop!("Prop 3" => "Prop 3/Value X"),
+                blank!("", end=LineEnding::None),
+            ];
+            let actual = section.items.into_iter()
+                .map(|item| item.into_owned(SOURCE));
+            assert_eq_iter!(actual, expected);
+        }
+    }
+    
+    #[test]
+    fn section_writer_replace_works() {
+        let section = parse_section(SOURCE);
+        // Replace an existing prop
+        {
+            let mut section = section.clone();
+            let mut writer = SectionWriter::new(&mut section, SOURCE);
+            let did_replace = writer.replace("Prop 0", "Prop 0/Value X");
+            let expected = [
+                comment!(" First set"),
+                prop!("Prop 0" => "Prop 0/Value 0"),
+                prop!("Prop 1" => "Prop 1/Value 0"),
+                prop!("Prop 2" => "Prop 2/Value 0"),
+                blank!(),
+                comment!(" Second set"),
+                prop!("PROP 0" => "Prop 0/Value 1"),
+                prop!("PROP 1" => "Prop 1/Value 1"),
+                prop!("PROP 2" => "Prop 2/Value 1"),
+                blank!(),
+                comment!(" Third set"),
+                prop!("prop 0" => "Prop 0/Value X"),
+                prop!("prop 1" => "Prop 1/Value 2"),
+                prop!("prop 2" => "Prop 2/Value 2"),
+                blank!(),
+                error!("error'd"),
+                blank!("", end=LineEnding::None),
+            ];
+            let actual = section.items.into_iter()
+                .map(|item| item.into_owned(SOURCE));
+            assert!(did_replace);
+            assert_eq_iter!(actual, expected);
+        }
+        // Replace a non-existent prop
+        {
+            let mut section = section.clone();
+            let expected = section.items.clone().into_iter()
+                .map(|item| item.into_owned(SOURCE));
+            let mut writer = SectionWriter::new(&mut section, SOURCE);
+            let did_replace = writer.replace("Prop 3", "Prop 3/Value X");
+            let actual = section.items.into_iter()
+                .map(|item| item.into_owned(SOURCE));
+            assert!(!did_replace);
+            assert_eq_iter!(actual, expected);
+        }
+    }
+    
+    #[test]
+    fn section_writer_unset_works() {
+        let mut section = parse_section(SOURCE);
+        let mut writer = SectionWriter::new(&mut section, SOURCE);
+        writer.unset("Prop 0");
+        let expected = [
+            comment!(" First set"),
+            prop!("Prop 1" => "Prop 1/Value 0"),
+            prop!("Prop 2" => "Prop 2/Value 0"),
+            blank!(),
+            comment!(" Second set"),
+            prop!("PROP 1" => "Prop 1/Value 1"),
+            prop!("PROP 2" => "Prop 2/Value 1"),
+            blank!(),
+            comment!(" Third set"),
+            prop!("prop 1" => "Prop 1/Value 2"),
+            prop!("prop 2" => "Prop 2/Value 2"),
+            blank!(),
+            error!("error'd"),
+            blank!("", end=LineEnding::None),
+        ];
+        let actual = section.items.into_iter()
+            .map(|item| item.into_owned(SOURCE));
+        assert_eq_iter!(actual, expected);
+    }
+    
+    #[test]
+    fn section_writer_iter_props_works() {
+        let mut section = parse_section(SOURCE);
+        let writer = SectionWriter::new(&mut section, SOURCE);
+        
+        let actual = HashMap::from_iter(writer.iter_props());
+        let expected = HashMap::from([
+            ("prop 0", "Prop 0/Value 2"),
+            ("prop 1", "Prop 1/Value 2"),
+            ("prop 2", "Prop 2/Value 2"),
+        ]);
+        assert_eq!(actual, expected);
     }
 }

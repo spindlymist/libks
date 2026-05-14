@@ -1,3 +1,11 @@
+macro_rules! assert_eq_iter {
+    ($a:expr, $b:expr) => {
+        for (i, (a, b)) in $a.into_iter().zip($b.into_iter()).enumerate() {
+            assert_eq!(a, b, "at index {i}");
+        }
+    };
+}
+
 macro_rules! before {
     ($path:literal) => {
         include_str!(concat!("../../test_data/before/", $path))
@@ -113,6 +121,7 @@ macro_rules! error {
     };
 }
 
+pub(crate) use assert_eq_iter;
 pub(crate) use before;
 pub(crate) use after;
 pub(crate) use padding;
