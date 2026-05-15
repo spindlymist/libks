@@ -178,13 +178,13 @@ trait IterItems {
 
 impl<'a> IterItems for SectionReader<'a> {
     fn iter_items(&self) -> std::slice::Iter<'_, Item> {
-        self.section.iter_items()
+        self.section.items.iter()
     }
 }
 
 impl<'a> IterItems for SectionWriter<'a> {
     fn iter_items(&self) -> std::slice::Iter<'_, Item> {
-        self.section.iter_items()
+        self.section.items.iter()
     }
 }
 

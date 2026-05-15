@@ -78,10 +78,11 @@ impl Ini {
                 .map(|(i, _section)| i)
                 .collect()
         }
+        else if let Some(indices) = self.section_map.get(key.as_ref()) {
+            Vec::from(indices)
+        }
         else {
-            self.section_map.get(key.as_ref())
-                .map(Vec::from)
-                .unwrap_or_else(|| Vec::new())
+            Vec::new()
         }
     }
     
@@ -244,12 +245,14 @@ impl Ini {
         self.section_map.clear();
     }
     
-    pub fn iter_sections(&self) -> IniSectionsIter<'_> {
-        IniSectionsIter::from_ini(self)
+    pub fn iter_sections(&self) -> impl Iterator<Item = SectionReader<'_>> {
+        self.sections.iter()
+            .map(|section| SectionReader::new(section, &self.source))
     }
     
-    pub fn iter_sections_mut(&mut self) -> IniSectionsIterMut<'_> {
-        IniSectionsIterMut::from_ini(self)
+    pub fn iter_sections_mut(&mut self) -> impl Iterator<Item = SectionWriter<'_>> {
+        self.sections.iter_mut()
+            .map(|section| SectionWriter::new(section, &self.source))
     }
 }
 
@@ -314,57 +317,6 @@ impl fmt::Display for Ini {
     }
 }
 
-pub struct IniSectionsIter<'a> {
-    sections: std::slice::Iter<'a, Section>,
-    source: &'a str,
-}
-
-impl<'a> IniSectionsIter<'a> {
-    pub fn from_ini(ini: &'a Ini) -> Self {
-        IniSectionsIter {
-            sections: ini.sections.iter(),
-            source: &ini.source,
-        }
-    }
-}
-
-impl<'a> Iterator for IniSectionsIter<'a> {
-    type Item = SectionReader<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let section = self.sections.next()?;
-        Some(SectionReader {
-            section,
-            source: self.source
-        })
-    }
-}
-
-pub struct IniSectionsIterMut<'a> {
-    sections: std::slice::IterMut<'a, Section>,
-    source: &'a str,
-}
-
-impl<'a> IniSectionsIterMut<'a> {
-    pub fn from_ini(ini: &'a mut Ini) -> Self {
-        IniSectionsIterMut {
-            sections: ini.sections.iter_mut(),
-            source: &ini.source,
-        }
-    }
-}
-
-impl<'a> Iterator for IniSectionsIterMut<'a> {
-    type Item = SectionWriter<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let section = self.sections.next()?;
-        Some(SectionWriter {
-            section,
-            source: self.source
-        })
-    }
-}
 
 #[cfg(test)]
 mod tests {

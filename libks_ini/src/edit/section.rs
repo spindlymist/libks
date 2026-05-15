@@ -101,15 +101,15 @@ impl Section {
         self.items.clear()
     }
     
-    pub fn iter_items(&self) -> std::slice::Iter<'_, Item> {
+    pub fn iter_items(&self) -> impl Iterator<Item = &Item> {
         self.items.iter()
     }
     
-    pub fn iter_items_mut(&mut self) -> std::slice::IterMut<'_, Item> {
+    pub fn iter_items_mut(&mut self) -> impl Iterator<Item = &mut Item> {
         self.items.iter_mut()
     }
     
-    pub fn into_items(self) -> <Vec<Item> as IntoIterator>::IntoIter {
+    pub fn into_items(self) -> impl Iterator<Item = Item> {
         self.items.into_iter()
     }
 }
@@ -119,7 +119,7 @@ impl<'a> IntoIterator for Section {
     type IntoIter = <Vec<Item> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.into_items()
+        self.items.into_iter()
     }
 }
 
@@ -128,7 +128,7 @@ impl<'a> IntoIterator for &'a Section {
     type IntoIter = std::slice::Iter<'a, Item>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.iter_items()
+        self.items.iter()
     }
 }
 
@@ -137,7 +137,7 @@ impl<'a> IntoIterator for &'a mut Section {
     type IntoIter = std::slice::IterMut<'a, Item>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.iter_items_mut()
+        self.items.iter_mut()
     }
 }
 
