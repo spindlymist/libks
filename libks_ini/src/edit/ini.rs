@@ -75,17 +75,6 @@ impl Ini {
         }
     }
     
-    pub fn enable_indexing(&mut self) {
-        self.section_map.is_enabled = true;
-        if self.section_map.is_dirty {
-            self.section_map.rebuild(&self.sections, &self.source);
-        }
-    }
-    
-    pub fn disable_indexing(&mut self) {
-        self.section_map.is_enabled = false;
-    }
-    
     pub fn source(&self) -> &str {
         &self.source
     }
@@ -108,87 +97,41 @@ impl Ini {
         }
     }
     
-    pub fn section_indices<K: AsRef<str>>(&self, key: K) -> Vec<usize> {
-        if self.section_map.is_dirty {
-            self.sections.iter()
-                .enumerate()
-                .filter(|(_i, section)| {
-                    section.header.key.to_str(&self.source)
-                        .eq_ignore_ascii_case(key.as_ref()) 
-                })
-                .map(|(i, _section)| i)
-                .collect()
-        }
-        else if let Some(indices) = self.section_map.get(key.as_ref()) {
-            Vec::from(indices)
-        }
-        else {
-            Vec::new()
-        }
+    pub fn section_indices<K: AsRef<str>>(&self, key: K) -> &[usize] {
+        self.section_map.get(key.as_ref())
+            .unwrap_or(&[])
     }
     
     fn find_sections<K: AsRef<str>>(&self, key: K) -> Vec<SectionReader<'_>> {
-        if self.section_map.is_dirty {
-            self.sections.iter()
-                .filter(|section| {
-                    section.header.key.to_str(&self.source)
-                        .eq_ignore_ascii_case(key.as_ref()) 
-                })
-                .map(|section| SectionReader::new(section, &self.source))
-                .collect()
-        }
-        else if let Some(indices) = self.section_map.get(key.as_ref()) {
-            indices.iter()
-                .map(|i| SectionReader::new(&self.sections[*i], &self.source))
-                .collect()
-        }
-        else {
-            Vec::new()
-        }
+        self.section_indices(key)
+            .iter()
+            .map(|i| SectionReader::new(&self.sections[*i], &self.source))
+            .collect()
     }
     
     fn find_sections_mut<K: AsRef<str>>(&mut self, key: K) -> Vec<SectionWriter<'_>> {
-        if self.section_map.is_dirty {
-            self.sections.iter_mut()
-                .filter(|section| {
-                    section.header.key.to_str(&self.source)
-                        .eq_ignore_ascii_case(key.as_ref()) 
-                })
-                .map(|section| SectionWriter::new(section, &self.source))
-                .collect()
-        }
-        else if let Some(indices) = self.section_map.get(key.as_ref()) {
-            let mut sections = Vec::with_capacity(indices.len());
-            let mut left;
-            let mut right = self.sections.as_mut_slice();
-            let mut right_start_index = 0;
+        let Some(indices) = self.section_map.get(key) else {
+            return Vec::new();
+        };
+        
+        let mut sections = Vec::with_capacity(indices.len());
+        let mut left;
+        let mut right = self.sections.as_mut_slice();
+        let mut right_start_index = 0;
 
-            for i in indices {
-                let borrow_at = i - right_start_index;
-                let split_at = borrow_at + 1;
-                (left, right) = right.split_at_mut(split_at);
-                right_start_index += split_at;
-                sections.push(SectionWriter::new(&mut left[borrow_at], &self.source));
-            }
+        for i in indices {
+            let borrow_at = i - right_start_index;
+            let split_at = borrow_at + 1;
+            (left, right) = right.split_at_mut(split_at);
+            right_start_index += split_at;
+            sections.push(SectionWriter::new(&mut left[borrow_at], &self.source));
+        }
 
-            sections
-        }
-        else {
-            Vec::new()
-        }
+        sections
     }
     
     pub fn has_section<K: AsRef<str>>(&self, key: K) -> bool {
-        if self.section_map.is_dirty {
-            self.sections.iter()
-                .any(|section| {
-                    section.header.key.to_str(&self.source)
-                        .eq_ignore_ascii_case(key.as_ref())     
-                })
-        }
-        else {
-            self.section_map.has(key)
-        }
+        self.section_map.has(key)
     }
     
     pub fn section_at(&self, index: usize) -> Option<SectionReader<'_>> {
@@ -255,11 +198,10 @@ impl Ini {
     }
     
     pub fn remove_sections<K: AsRef<str>>(&mut self, key: K) -> Vec<usize> {
-        let indices = self.section_indices(key);
+        let indices = self.section_indices(key).to_owned();
         for &i in indices.iter().rev() {
             self.remove_section_at(i);
         }
-        
         indices
     }
     
@@ -277,7 +219,7 @@ impl Ini {
         K1: AsRef<str>,
         K2: Into<String>,
     {
-        let indices = self.section_indices(key_from);
+        let indices = self.section_indices(key_from).to_owned();
         let key_to = key_to.into();
         
         if indices.len() == 1 {
@@ -443,18 +385,6 @@ Prop 4=Section 1/Prop 4
     }
     
     #[test]
-    fn ini_has_section_works_with_dirty_map() {
-        const SOURCE: &'static str = before!("duplicates.ini");
-        let mut ini = Ini::parse(SOURCE);
-        ini.section_map.is_dirty = true;
-        
-        assert!(ini.has_section("Section 0"));
-        assert!(ini.has_section("Section 1"));
-        assert!(ini.has_section("Section 2"));
-        assert!(!ini.has_section("Section 3"));
-    }
-    
-    #[test]
     fn ini_find_sections_works() {
         const SOURCE: &'static str = before!("duplicates.ini");
         let ini = Ini::parse(SOURCE);
@@ -467,35 +397,9 @@ Prop 4=Section 1/Prop 4
     }
     
     #[test]
-    fn ini_find_sections_works_with_dirty_map() {
-        const SOURCE: &'static str = before!("duplicates.ini");
-        let mut ini = Ini::parse(SOURCE);
-        ini.section_map.is_dirty = true;
-        
-        let sections = ini.find_sections("Section 0");
-        assert_eq!(sections.len(), 3);
-        assert_eq!(sections[0].key(), "Section 0");
-        assert_eq!(sections[1].key(), "SECTION 0");
-        assert_eq!(sections[2].key(), "section 0");
-    }
-    
-    #[test]
     fn ini_find_sections_mut_works() {
         const SOURCE: &'static str = before!("duplicates.ini");
         let mut ini = Ini::parse(SOURCE);
-        
-        let sections = ini.find_sections_mut("Section 0");
-        assert_eq!(sections.len(), 3);
-        assert_eq!(sections[0].key(), "Section 0");
-        assert_eq!(sections[1].key(), "SECTION 0");
-        assert_eq!(sections[2].key(), "section 0");
-    }
-    
-    #[test]
-    fn ini_find_sections_mut_works_with_dirty_map() {
-        const SOURCE: &'static str = before!("duplicates.ini");
-        let mut ini = Ini::parse(SOURCE);
-        ini.section_map.is_dirty = true;
         
         let sections = ini.find_sections_mut("Section 0");
         assert_eq!(sections.len(), 3);
@@ -519,39 +423,9 @@ Prop 4=Section 1/Prop 4
     }
     
     #[test]
-    fn ini_section_works_with_dirty_map() {
-        const SOURCE: &'static str = before!("duplicates.ini");
-        let mut ini = Ini::parse(SOURCE);
-        ini.section_map.is_dirty = true;
-        
-        let logical_section = ini.section("Section 0").unwrap();
-        assert_eq!(logical_section.sections.len(), 3);
-        assert_eq!(logical_section.sections[0].key(), "Section 0");
-        assert_eq!(logical_section.sections[1].key(), "SECTION 0");
-        assert_eq!(logical_section.sections[2].key(), "section 0");
-
-        assert!(ini.section("Section 3").is_none());
-    }
-    
-    #[test]
     fn ini_section_mut_works() {
         const SOURCE: &'static str = before!("duplicates.ini");
         let mut ini = Ini::parse(SOURCE);
-        
-        let logical_section = ini.section_mut("Section 0").unwrap();
-        assert_eq!(logical_section.sections.len(), 3);
-        assert_eq!(logical_section.sections[0].key(), "Section 0");
-        assert_eq!(logical_section.sections[1].key(), "SECTION 0");
-        assert_eq!(logical_section.sections[2].key(), "section 0");
-
-        assert!(ini.section_mut("Section 3").is_none());
-    }
-    
-    #[test]
-    fn ini_section_mut_works_with_dirty_map() {
-        const SOURCE: &'static str = before!("duplicates.ini");
-        let mut ini = Ini::parse(SOURCE);
-        ini.section_map.is_dirty = true;
         
         let logical_section = ini.section_mut("Section 0").unwrap();
         assert_eq!(logical_section.sections.len(), 3);

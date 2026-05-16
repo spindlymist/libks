@@ -5,27 +5,21 @@ use crate::edit::Section;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SectionMap {
     pub(crate) map: HashMap<String, Vec<usize>>,
-    pub(crate) is_dirty: bool,
-    pub(crate) is_enabled: bool,
 }
 
 impl SectionMap {
     pub fn new() -> Self {
         Self {
             map: HashMap::new(),
-            is_dirty: false,
-            is_enabled: true,
         }
     }
     
     pub fn get<K: AsRef<str>>(&self, key: K) -> Option<&[usize]> {
-        debug_assert!(!self.is_dirty);
         self.map.get(&key.as_ref().to_ascii_lowercase())
             .map(Vec::as_slice)
     }
     
     pub fn has<K: AsRef<str>>(&self, key: K) -> bool {
-        debug_assert!(!self.is_dirty);
         self.map.contains_key(&key.as_ref().to_ascii_lowercase())
     }
     
@@ -40,29 +34,15 @@ impl SectionMap {
                 .or_insert_with(|| Vec::new())
                 .push(i);
         }
-        
-        self.is_dirty = false;
     }
     
     pub fn update_after_append<K: AsRef<str>>(&mut self, key: K, index: usize) {
-        if !self.is_enabled {
-            self.is_dirty = true;
-            return;
-        }
-        debug_assert!(!self.is_dirty);
-        
         self.map.entry(key.as_ref().to_ascii_lowercase())
             .and_modify(|indices| indices.push(index))
             .or_insert_with(|| vec![index]);
     }
     
     pub fn update_after_insert<K: AsRef<str>>(&mut self, key: K, index: usize) {
-        if !self.is_enabled {
-            self.is_dirty = true;
-            return;
-        }
-        debug_assert!(!self.is_dirty);
-        
         // All indices after the insert index shift forward 1
         for (_, indices) in self.map.iter_mut() {
             for i in indices.iter_mut().rev() {
@@ -86,12 +66,6 @@ impl SectionMap {
     }
     
     pub fn update_after_remove<K: AsRef<str>>(&mut self, key: K, index: usize) {
-        if !self.is_enabled {
-            self.is_dirty = true;
-            return;
-        }
-        debug_assert!(!self.is_dirty);
-        
         // Remove the old index from the map
         let key_lower = key.as_ref().to_ascii_lowercase();
         let indices = self.map.get_mut(&key_lower)
@@ -119,12 +93,6 @@ impl SectionMap {
         K1: AsRef<str>,
         K2: AsRef<str>
     {
-        if !self.is_enabled {
-            self.is_dirty = true;
-            return;
-        }
-        debug_assert!(!self.is_dirty);
-        
         // Delete the index under the old key
         let key_from_lower = key_from.as_ref().to_ascii_lowercase();
         let indices = self.map.get_mut(&key_from_lower)
@@ -147,7 +115,6 @@ impl SectionMap {
     
     pub fn clear(&mut self) {
         self.map.clear();
-        self.is_dirty = false;
     }
     
     #[cfg(test)]
