@@ -34,6 +34,47 @@ impl Ini {
         }
     }
     
+    pub fn parse<S: Into<String>>(source: S) -> Self {
+        let source = source.into();
+        let mut parser = Parser::new(&source).peekable();
+        
+        let first_line_ending = match parser.peek() {
+            Some(Item::Section(inner)) => inner.line_ending,
+            Some(Item::Property(inner)) => inner.line_ending,
+            Some(Item::Comment(inner)) => inner.line_ending,
+            Some(Item::Blank(inner)) => inner.line_ending,
+            Some(Item::Error(inner)) => inner.line_ending,
+            None => LineEnding::default(),
+        };
+        
+        let mut sections = Vec::new();
+        let mut global_section = Section::new(String::new(), first_line_ending);
+        let mut current_section = &mut global_section;
+        
+        for item in parser {
+            match item {
+                Item::Section(header) => {
+                    let section = Section::from_header(header);
+                    sections.push(section);
+                    let index = sections.len() - 1;
+                    current_section = &mut sections[index];
+                }
+                _ => current_section.append_item(item)
+            }
+        }
+        
+        let mut section_map = SectionMap::new();
+        section_map.rebuild(&sections, &source);
+        
+        Self {
+            source,
+            global_section,
+            sections,
+            section_map,
+            line_ending: first_line_ending,
+        }
+    }
+    
     pub fn enable_indexing(&mut self) {
         self.section_map.is_enabled = true;
         if self.section_map.is_dirty {
@@ -187,8 +228,10 @@ impl Ini {
     pub fn insert_section<K: Into<String>>(&mut self, index: usize, key: K) -> SectionWriter<'_> {
         let key = key.into();
         self.section_map.update_after_insert(&key, index);
+        
         let section = Section::new(key, self.line_ending);
         self.sections.insert(index, section);
+        
         SectionWriter::new(&mut self.sections[index], &self.source)
     }
     
@@ -211,11 +254,13 @@ impl Ini {
         section
     }
     
-    pub fn remove_sections<K: AsRef<str>>(&mut self, key: K) {
+    pub fn remove_sections<K: AsRef<str>>(&mut self, key: K) -> Vec<usize> {
         let indices = self.section_indices(key);
-        for i in indices.into_iter().rev() {
+        for &i in indices.iter().rev() {
             self.remove_section_at(i);
         }
+        
+        indices
     }
     
     pub fn rename_section_at<K: Into<String>>(&mut self, index: usize, key: K) {
@@ -227,16 +272,24 @@ impl Ini {
         section.header.key = Span::String(new_key);
     }
     
-    pub fn rename_sections<K1, K2>(&mut self, key_from: K1, key_to: K2)
+    pub fn rename_sections<K1, K2>(&mut self, key_from: K1, key_to: K2) -> Vec<usize>
     where
         K1: AsRef<str>,
         K2: Into<String>,
     {
         let indices = self.section_indices(key_from);
         let key_to = key_to.into();
-        for i in indices {
-            self.rename_section_at(i, key_to.clone());
+        
+        if indices.len() == 1 {
+            self.rename_section_at(indices[0], key_to)
         }
+        else {
+            for &i in &indices {
+                self.rename_section_at(i, key_to.clone());
+            }
+        }
+        
+        indices
     }
     
     pub fn clear(&mut self) {
@@ -258,50 +311,13 @@ impl Ini {
 
 impl<'a> From<&'a str> for Ini {
     fn from(source: &'a str) -> Self {
-        Ini::from(source.to_owned())
+        Ini::parse(source.to_owned())
     }
 }
 
-impl<'a> From<String> for Ini {
+impl From<String> for Ini {
     fn from(source: String) -> Self {
-        let mut parser = Parser::new(&source).peekable();
-        let first_line_ending = match parser.peek() {
-            Some(Item::Section(inner)) => inner.line_ending,
-            Some(Item::Property(inner)) => inner.line_ending,
-            Some(Item::Comment(inner)) => inner.line_ending,
-            Some(Item::Blank(inner)) => inner.line_ending,
-            Some(Item::Error(inner)) => inner.line_ending,
-            None => LineEnding::default(),
-        };
-        
-        let mut sections = Vec::new();
-        let mut global_section = Section::new(String::new(), first_line_ending);
-        let mut current_section = &mut global_section;
-        
-        for item in parser {
-            match item {
-                Item::Section(header) => {
-                    let section = Section::from_header(header);
-                    sections.push(section);
-                    let index = sections.len() - 1;
-                    current_section = &mut sections[index];
-                },
-                _ => {
-                    current_section.append_item(item);
-                }
-            }
-        }
-        
-        let mut section_map = SectionMap::new();
-        section_map.rebuild(&sections, &source);
-        
-        Self {
-            source,
-            global_section,
-            sections,
-            section_map,
-            line_ending: first_line_ending,
-        }
+        Ini::parse(source)
     }
 }
 
@@ -317,7 +333,6 @@ impl fmt::Display for Ini {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -326,7 +341,7 @@ mod tests {
     #[test]
     fn round_trip_matches_exactly() {
         const SOURCE: &'static str = before!("the_machine.ini");
-        let ini = Ini::from(SOURCE);
+        let ini = Ini::parse(SOURCE);
         assert_eq!(ini.to_string(), SOURCE);
     }
 }
