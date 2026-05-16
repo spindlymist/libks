@@ -337,11 +337,592 @@ impl fmt::Display for Ini {
 mod tests {
     use super::*;
     use crate::test_macros::*;
-
+    use crate::whitespace::LineEnding;
+    use crate::item::{Item, ItemsIterExt};
+    
     #[test]
-    fn round_trip_matches_exactly() {
+    fn ini_parse_works() {
+        const SOURCE: &'static str = "\
+; This is the global section
+Global Prop 0=Global Section/Global Prop 0
+Global Prop 1=Global Section/Global Prop 1
+
+an error? in my global section?
+
+[Section 0]
+; This is section 0
+Prop 0=Section 0/Prop 0
+Prop 1=Section 0/Prop 1
+
+[Section 1]
+; This is section 1
+Prop 3=Section 1/Prop 3
+Prop 4=Section 1/Prop 4
+";
+        let ini = Ini::parse(SOURCE);
+        
+        assert_eq!(ini.len(), 2);
+        {
+            let section = ini.global_section();
+            let expected = [
+                comment!(" This is the global section"),
+                prop!("Global Prop 0" => "Global Section/Global Prop 0"),
+                prop!("Global Prop 1" => "Global Section/Global Prop 1"),
+                blank!(),
+                error!("an error? in my global section?"),
+                blank!(),
+            ];
+            assert_eq_iter!(
+                section.iter_items().with_source(ini.source()),
+                expected.iter().with_source(ini.source())
+            );
+        }
+        {
+            let section = ini.section_at(0).unwrap();
+            assert_eq!(
+                Item::from(section.header().clone()).with_source(ini.source()),
+                section!("Section 0").with_source(ini.source())
+            );
+            let expected = [
+                comment!(" This is section 0"),
+                prop!("Prop 0" => "Section 0/Prop 0"),
+                prop!("Prop 1" => "Section 0/Prop 1"),
+                blank!(),
+            ];
+            assert_eq_iter!(
+                section.iter_items().with_source(ini.source()),
+                expected.iter().with_source(ini.source())
+            );
+        }
+        {
+            let section = ini.section_at(1).unwrap();
+            assert_eq!(
+                Item::from(section.header().clone()).with_source(ini.source()),
+                section!("Section 1").with_source(ini.source())
+            );
+            let expected = [
+                comment!(" This is section 1"),
+                prop!("Prop 3" => "Section 1/Prop 3"),
+                prop!("Prop 4" => "Section 1/Prop 4"),
+                blank!("", end=LineEnding::None),
+            ];
+            assert_eq_iter!(
+                section.iter_items().with_source(ini.source()),
+                expected.iter().with_source(ini.source())
+            );
+        }
+    }
+    
+    #[test]
+    fn ini_display_works() {
         const SOURCE: &'static str = before!("the_machine.ini");
         let ini = Ini::parse(SOURCE);
         assert_eq!(ini.to_string(), SOURCE);
+    }
+    
+    #[test]
+    fn ini_section_indices_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let ini = Ini::parse(SOURCE);
+        
+        assert_eq!(ini.section_indices("Section 0"), [0, 3, 6]);
+        assert_eq!(ini.section_indices("Section 1"), [1, 4, 7]);
+        assert_eq!(ini.section_indices("Section 2"), [2, 5, 8]);
+        assert_eq!(ini.section_indices("Section 3"), []);
+    }
+    
+    #[test]
+    fn ini_has_section_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let ini = Ini::parse(SOURCE);
+        
+        assert!(ini.has_section("Section 0"));
+        assert!(ini.has_section("Section 1"));
+        assert!(ini.has_section("Section 2"));
+        assert!(!ini.has_section("Section 3"));
+    }
+    
+    #[test]
+    fn ini_has_section_works_with_dirty_map() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let mut ini = Ini::parse(SOURCE);
+        ini.section_map.is_dirty = true;
+        
+        assert!(ini.has_section("Section 0"));
+        assert!(ini.has_section("Section 1"));
+        assert!(ini.has_section("Section 2"));
+        assert!(!ini.has_section("Section 3"));
+    }
+    
+    #[test]
+    fn ini_find_sections_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let ini = Ini::parse(SOURCE);
+        
+        let sections = ini.find_sections("Section 0");
+        assert_eq!(sections.len(), 3);
+        assert_eq!(sections[0].key(), "Section 0");
+        assert_eq!(sections[1].key(), "SECTION 0");
+        assert_eq!(sections[2].key(), "section 0");
+    }
+    
+    #[test]
+    fn ini_find_sections_works_with_dirty_map() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let mut ini = Ini::parse(SOURCE);
+        ini.section_map.is_dirty = true;
+        
+        let sections = ini.find_sections("Section 0");
+        assert_eq!(sections.len(), 3);
+        assert_eq!(sections[0].key(), "Section 0");
+        assert_eq!(sections[1].key(), "SECTION 0");
+        assert_eq!(sections[2].key(), "section 0");
+    }
+    
+    #[test]
+    fn ini_find_sections_mut_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let mut ini = Ini::parse(SOURCE);
+        
+        let sections = ini.find_sections_mut("Section 0");
+        assert_eq!(sections.len(), 3);
+        assert_eq!(sections[0].key(), "Section 0");
+        assert_eq!(sections[1].key(), "SECTION 0");
+        assert_eq!(sections[2].key(), "section 0");
+    }
+    
+    #[test]
+    fn ini_find_sections_mut_works_with_dirty_map() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let mut ini = Ini::parse(SOURCE);
+        ini.section_map.is_dirty = true;
+        
+        let sections = ini.find_sections_mut("Section 0");
+        assert_eq!(sections.len(), 3);
+        assert_eq!(sections[0].key(), "Section 0");
+        assert_eq!(sections[1].key(), "SECTION 0");
+        assert_eq!(sections[2].key(), "section 0");
+    }
+    
+    #[test]
+    fn ini_section_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let ini = Ini::parse(SOURCE);
+        
+        let logical_section = ini.section("Section 0").unwrap();
+        assert_eq!(logical_section.sections.len(), 3);
+        assert_eq!(logical_section.sections[0].key(), "Section 0");
+        assert_eq!(logical_section.sections[1].key(), "SECTION 0");
+        assert_eq!(logical_section.sections[2].key(), "section 0");
+
+        assert!(ini.section("Section 3").is_none());
+    }
+    
+    #[test]
+    fn ini_section_works_with_dirty_map() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let mut ini = Ini::parse(SOURCE);
+        ini.section_map.is_dirty = true;
+        
+        let logical_section = ini.section("Section 0").unwrap();
+        assert_eq!(logical_section.sections.len(), 3);
+        assert_eq!(logical_section.sections[0].key(), "Section 0");
+        assert_eq!(logical_section.sections[1].key(), "SECTION 0");
+        assert_eq!(logical_section.sections[2].key(), "section 0");
+
+        assert!(ini.section("Section 3").is_none());
+    }
+    
+    #[test]
+    fn ini_section_mut_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let mut ini = Ini::parse(SOURCE);
+        
+        let logical_section = ini.section_mut("Section 0").unwrap();
+        assert_eq!(logical_section.sections.len(), 3);
+        assert_eq!(logical_section.sections[0].key(), "Section 0");
+        assert_eq!(logical_section.sections[1].key(), "SECTION 0");
+        assert_eq!(logical_section.sections[2].key(), "section 0");
+
+        assert!(ini.section_mut("Section 3").is_none());
+    }
+    
+    #[test]
+    fn ini_section_mut_works_with_dirty_map() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let mut ini = Ini::parse(SOURCE);
+        ini.section_map.is_dirty = true;
+        
+        let logical_section = ini.section_mut("Section 0").unwrap();
+        assert_eq!(logical_section.sections.len(), 3);
+        assert_eq!(logical_section.sections[0].key(), "Section 0");
+        assert_eq!(logical_section.sections[1].key(), "SECTION 0");
+        assert_eq!(logical_section.sections[2].key(), "section 0");
+
+        assert!(ini.section_mut("Section 3").is_none());
+    }
+    
+    #[test]
+    fn ini_insert_section_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let ini = Ini::parse(SOURCE);
+        {
+            let mut ini = ini.clone();
+            ini.insert_section(0, "secTION 0");
+            
+            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let expected_sections = [
+                "secTION 0",
+                "Section 0",
+                "Section 1",
+                "Section 2",
+                "SECTION 0",
+                "SECTION 1",
+                "SECTION 2",
+                "section 0",
+                "section 1",
+                "section 2",
+            ];
+            assert_eq_iter!(actual_sections, expected_sections);
+            
+            let mut expected_map = SectionMap::new();
+            expected_map.rebuild(&ini.sections, ini.source());
+            assert_eq!(ini.section_map, expected_map);
+        }
+        {
+            let mut ini = ini.clone();
+            ini.insert_section(5, "Section 3");
+            
+            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let expected_sections = [
+                "Section 0",
+                "Section 1",
+                "Section 2",
+                "SECTION 0",
+                "SECTION 1",
+                "Section 3",
+                "SECTION 2",
+                "section 0",
+                "section 1",
+                "section 2",
+            ];
+            assert_eq_iter!(actual_sections, expected_sections);
+            
+            let mut expected_map = SectionMap::new();
+            expected_map.rebuild(&ini.sections, ini.source());
+            assert_eq!(ini.section_map, expected_map);
+        }
+    }
+    
+    #[test]
+    fn ini_append_section_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let ini = Ini::parse(SOURCE);
+        {
+            let mut ini = ini.clone();
+            ini.append_section("secTION 0");
+            
+            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let expected_sections = [
+                "Section 0",
+                "Section 1",
+                "Section 2",
+                "SECTION 0",
+                "SECTION 1",
+                "SECTION 2",
+                "section 0",
+                "section 1",
+                "section 2",
+                "secTION 0",
+            ];
+            assert_eq_iter!(actual_sections, expected_sections);
+            
+            let mut expected_map = SectionMap::new();
+            expected_map.rebuild(&ini.sections, ini.source());
+            assert_eq!(ini.section_map, expected_map);
+        }
+        {
+            let mut ini = ini.clone();
+            ini.append_section("Section 3");
+            
+            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let expected_sections = [
+                "Section 0",
+                "Section 1",
+                "Section 2",
+                "SECTION 0",
+                "SECTION 1",
+                "SECTION 2",
+                "section 0",
+                "section 1",
+                "section 2",
+                "Section 3",
+            ];
+            assert_eq_iter!(actual_sections, expected_sections);
+            
+            let mut expected_map = SectionMap::new();
+            expected_map.rebuild(&ini.sections, ini.source());
+            assert_eq!(ini.section_map, expected_map);
+        }
+    }
+    
+    #[test]
+    fn ini_remove_section_at_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let ini = Ini::parse(SOURCE);
+        {
+            let mut ini = ini.clone();
+            ini.remove_section_at(0);
+            
+            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let expected_sections = [
+                "Section 1",
+                "Section 2",
+                "SECTION 0",
+                "SECTION 1",
+                "SECTION 2",
+                "section 0",
+                "section 1",
+                "section 2",
+            ];
+            assert_eq_iter!(actual_sections, expected_sections);
+            
+            let mut expected_map = SectionMap::new();
+            expected_map.rebuild(&ini.sections, ini.source());
+            assert_eq!(ini.section_map, expected_map);
+        }
+        {
+            let mut ini = ini.clone();
+            ini.remove_section_at(5);
+            
+            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let expected_sections = [
+                "Section 0",
+                "Section 1",
+                "Section 2",
+                "SECTION 0",
+                "SECTION 1",
+                "section 0",
+                "section 1",
+                "section 2",
+            ];
+            assert_eq_iter!(actual_sections, expected_sections);
+            
+            let mut expected_map = SectionMap::new();
+            expected_map.rebuild(&ini.sections, ini.source());
+            assert_eq!(ini.section_map, expected_map);
+        }
+    }
+    
+    #[test]
+    fn ini_remove_sections_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let ini = Ini::parse(SOURCE);
+        {
+            let mut ini = ini.clone();
+            let indices = ini.remove_sections("secTION 0");
+            assert_eq!(indices, [0, 3, 6]);
+            
+            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let expected_sections = [
+                "Section 1",
+                "Section 2",
+                "SECTION 1",
+                "SECTION 2",
+                "section 1",
+                "section 2",
+            ];
+            assert_eq_iter!(actual_sections, expected_sections);
+            
+            let mut expected_map = SectionMap::new();
+            expected_map.rebuild(&ini.sections, ini.source());
+            assert_eq!(ini.section_map, expected_map);
+        }
+        // Removing nonexistent section is a no-op
+        {
+            let mut ini_modified = ini.clone();
+            let indices = ini_modified.remove_sections("Section 3");
+            assert!(indices.is_empty());
+            
+            let actual_sections = ini_modified.iter_sections().map(|section| section.key());
+            let expected_sections = ini_modified.iter_sections().map(|section| section.key());
+            assert_eq_iter!(actual_sections, expected_sections);
+            
+            assert_eq!(ini_modified.section_map, ini.section_map);
+        }
+    }
+    
+    #[test]
+    fn ini_rename_section_at_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let ini = Ini::parse(SOURCE);
+        {
+            let mut ini = ini.clone();
+            ini.rename_section_at(0, "secTION 1");
+            
+            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let expected_sections = [
+                "secTION 1",
+                "Section 1",
+                "Section 2",
+                "SECTION 0",
+                "SECTION 1",
+                "SECTION 2",
+                "section 0",
+                "section 1",
+                "section 2",
+            ];
+            assert_eq_iter!(actual_sections, expected_sections);
+            
+            let mut expected_map = SectionMap::new();
+            expected_map.rebuild(&ini.sections, ini.source());
+            assert_eq!(ini.section_map, expected_map);
+        }
+        {
+            let mut ini = ini.clone();
+            ini.rename_section_at(5, "Section 3");
+            
+            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let expected_sections = [
+                "Section 0",
+                "Section 1",
+                "Section 2",
+                "SECTION 0",
+                "SECTION 1",
+                "Section 3",
+                "section 0",
+                "section 1",
+                "section 2",
+            ];
+            assert_eq_iter!(actual_sections, expected_sections);
+            
+            let mut expected_map = SectionMap::new();
+            expected_map.rebuild(&ini.sections, ini.source());
+            assert_eq!(ini.section_map, expected_map);
+        }
+    }
+    
+    #[test]
+    fn ini_rename_sections_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let ini = Ini::parse(SOURCE);
+        {
+            let mut ini = ini.clone();
+            ini.rename_sections("secTION 0", "secTION 1");
+            
+            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let expected_sections = [
+                "secTION 1",
+                "Section 1",
+                "Section 2",
+                "secTION 1",
+                "SECTION 1",
+                "SECTION 2",
+                "secTION 1",
+                "section 1",
+                "section 2",
+            ];
+            assert_eq_iter!(actual_sections, expected_sections);
+            
+            let mut expected_map = SectionMap::new();
+            expected_map.rebuild(&ini.sections, ini.source());
+            assert_eq!(ini.section_map, expected_map);
+        }
+        {
+            let mut ini = ini.clone();
+            ini.rename_sections("secTION 0", "Section 3");
+            
+            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let expected_sections = [
+                "Section 3",
+                "Section 1",
+                "Section 2",
+                "Section 3",
+                "SECTION 1",
+                "SECTION 2",
+                "Section 3",
+                "section 1",
+                "section 2",
+            ];
+            assert_eq_iter!(actual_sections, expected_sections);
+            
+            let mut expected_map = SectionMap::new();
+            expected_map.rebuild(&ini.sections, ini.source());
+            assert_eq!(ini.section_map, expected_map);
+        }
+        {
+            let mut ini = ini.clone();
+            ini.rename_section_at(5, "Section 3");
+            
+            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let expected_sections = [
+                "Section 0",
+                "Section 1",
+                "Section 2",
+                "SECTION 0",
+                "SECTION 1",
+                "Section 3",
+                "section 0",
+                "section 1",
+                "section 2",
+            ];
+            assert_eq_iter!(actual_sections, expected_sections);
+            
+            let mut expected_map = SectionMap::new();
+            expected_map.rebuild(&ini.sections, ini.source());
+            assert_eq!(ini.section_map, expected_map);
+        }
+    }
+    
+    #[test]
+    fn ini_clear_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let mut ini = Ini::parse(SOURCE);
+        ini.clear();
+        
+        assert!(ini.sections.is_empty());
+        assert_eq_iter!(ini.global_section.iter_items(), &[]);
+        assert_eq_iter!(ini.section_map.ordering().iter(), &[] as &[String]);
+    }
+    
+    #[test]
+    fn ini_iter_sections_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let ini = Ini::parse(SOURCE);
+        
+        let actual_sections = ini.iter_sections().map(|section| section.key());
+        let expected_sections = [
+            "Section 0",
+            "Section 1",
+            "Section 2",
+            "SECTION 0",
+            "SECTION 1",
+            "SECTION 2",
+            "section 0",
+            "section 1",
+            "section 2",
+        ];
+        assert_eq_iter!(actual_sections, expected_sections);
+    }
+    
+    #[test]
+    fn ini_iter_sections_mut_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let mut ini = Ini::parse(SOURCE);
+        
+        let actual_sections = ini.iter_sections_mut()
+            .map(|section| section.key().to_owned());
+        let expected_sections = [
+            "Section 0",
+            "Section 1",
+            "Section 2",
+            "SECTION 0",
+            "SECTION 1",
+            "SECTION 2",
+            "section 0",
+            "section 1",
+            "section 2",
+        ];
+        assert_eq_iter!(actual_sections, expected_sections);
     }
 }

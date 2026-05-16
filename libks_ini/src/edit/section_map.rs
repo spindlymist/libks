@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::edit::Section;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SectionMap {
     pub(crate) map: HashMap<String, Vec<usize>>,
     pub(crate) is_dirty: bool,
@@ -148,6 +148,25 @@ impl SectionMap {
     pub fn clear(&mut self) {
         self.map.clear();
         self.is_dirty = false;
+    }
+    
+    #[cfg(test)]
+    pub fn ordering(&self) -> Vec<String> {
+        let n_sections = self.map.values()
+            .map(|indices| indices.len())
+            .sum();
+        
+        let mut ordering: Vec<Option<String>> = vec![None; n_sections];
+        for (key, indices) in &self.map {
+            for &i in indices {
+                assert!(ordering[i].is_none());
+                ordering[i] = Some(key.clone());
+            }
+        }
+        
+        ordering.into_iter()
+            .map(Option::unwrap)
+            .collect()
     }
 }
 

@@ -6,12 +6,12 @@ use super::section::{SectionReader, SectionWriter};
 
 #[derive(Debug)]
 pub struct LogicalSection<'a> {
-    sections: Vec<SectionReader<'a>>,
+    pub(crate) sections: Vec<SectionReader<'a>>,
 }
 
 #[derive(Debug)]
 pub struct LogicalSectionMut<'a> {
-    sections: Vec<SectionWriter<'a>>,
+    pub(crate) sections: Vec<SectionWriter<'a>>,
 }
 
 impl<'a> LogicalSection<'a> {
@@ -193,7 +193,7 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::test_macros::*;
-    use crate::edit::Ini;
+    use crate::edit::ini::Ini;
     
     #[test]
     fn logical_section_has_works() {

@@ -188,6 +188,7 @@ impl From<ErrorItem> for Item {
 pub mod sourced {
     use super::*;
     
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum SourcedItem<'a> {
         Section(SourcedSectionItem<'a>),
         Property(SourcedPropertyItem<'a>),
@@ -196,26 +197,31 @@ pub mod sourced {
         Error(SourcedErrorItem<'a>),
     }
     
+    #[derive(Debug, Clone)]
     pub struct SourcedSectionItem<'a> {
         pub item: &'a SectionItem,
         pub source: &'a str,
     }
     
+    #[derive(Debug, Clone)]
     pub struct SourcedPropertyItem<'a> {
         pub item: &'a PropertyItem,
         pub source: &'a str,
     }
     
+    #[derive(Debug, Clone)]
     pub struct SourcedCommentItem<'a> {
         pub item: &'a CommentItem,
         pub source: &'a str,
     }
     
+    #[derive(Debug, Clone)]
     pub struct SourcedBlankItem<'a> {
         pub item: &'a BlankItem,
         pub source: &'a str,
     }
     
+    #[derive(Debug, Clone)]
     pub struct SourcedErrorItem<'a> {
         pub item: &'a ErrorItem,
         pub source: &'a str,
@@ -280,5 +286,72 @@ pub mod sourced {
             let line = item.line.to_str(source);
             write!(f, "{line}{}", item.line_ending)
         }
+    }
+    
+    impl<'a> PartialEq for SourcedSectionItem<'a> {
+        fn eq(&self, other: &Self) -> bool {
+            self.item.key.to_str(self.source) == other.item.key.to_str(other.source)
+            && self.item.padding.0.to_str(self.source) == other.item.padding.0.to_str(other.source)
+            && self.item.padding.1.to_str(self.source) == other.item.padding.1.to_str(other.source)
+            && self.item.line_ending == other.item.line_ending
+        }
+    }
+    
+    impl<'a> Eq for SourcedSectionItem<'a> { }
+    
+    impl<'a> PartialEq for SourcedPropertyItem<'a> {
+        fn eq(&self, other: &Self) -> bool {
+            self.item.key.to_str(self.source) == other.item.key.to_str(other.source)
+            && self.item.value.to_str(self.source) == other.item.value.to_str(other.source)
+            && self.item.padding.0.to_str(self.source) == other.item.padding.0.to_str(other.source)
+            && self.item.padding.1.to_str(self.source) == other.item.padding.1.to_str(other.source)
+            && self.item.padding.2.to_str(self.source) == other.item.padding.2.to_str(other.source)
+            && self.item.padding.3.to_str(self.source) == other.item.padding.3.to_str(other.source)
+            && self.item.line_ending == other.item.line_ending
+        }
+    }
+    
+    impl<'a> Eq for SourcedPropertyItem<'a> { }
+    
+    impl<'a> PartialEq for SourcedCommentItem<'a> {
+        fn eq(&self, other: &Self) -> bool {
+            self.item.comment.to_str(self.source) == other.item.comment.to_str(other.source)
+            && self.item.padding.0.to_str(self.source) == other.item.padding.0.to_str(other.source)
+            && self.item.padding.1.to_str(self.source) == other.item.padding.1.to_str(other.source)
+            && self.item.line_ending == other.item.line_ending
+        }
+    }
+    
+    impl<'a> Eq for SourcedCommentItem<'a> { }
+    
+    impl<'a> PartialEq for SourcedBlankItem<'a> {
+        fn eq(&self, other: &Self) -> bool {
+            self.item.line.to_str(self.source) == other.item.line.to_str(other.source)
+            && self.item.line_ending == other.item.line_ending
+        }
+    }
+    
+    impl<'a> Eq for SourcedBlankItem<'a> { }
+    
+    impl<'a> PartialEq for SourcedErrorItem<'a> {
+        fn eq(&self, other: &Self) -> bool {
+            self.item.line.to_str(self.source) == other.item.line.to_str(other.source)
+            && self.item.line_ending == other.item.line_ending
+        }
+    }
+    
+    impl<'a> Eq for SourcedErrorItem<'a> { }   
+}
+
+pub trait ItemsIterExt<'a> {
+    fn with_source(self, source: &'a str) -> impl Iterator<Item = sourced::SourcedItem<'a>>;
+}
+
+impl<'a, I> ItemsIterExt<'a> for I
+where
+    I: Iterator<Item = &'a Item>
+{
+    fn with_source(self, source: &'a str) -> impl Iterator<Item = sourced::SourcedItem<'a>> {
+        self.map(|item| item.with_source(source))
     }
 }
