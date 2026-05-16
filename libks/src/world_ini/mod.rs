@@ -1,6 +1,6 @@
 use std::{fs, path::Path};
 
-use libks_ini::Ini;
+use libks_ini::edit::Ini;
 
 use crate::Result;
 
@@ -26,7 +26,7 @@ where
         contents.to_string()
     };
 
-    Ok(Ini::new(&ini_contents))
+    Ok(Ini::parse(ini_contents))
 }
 
 /// Attempts to read and parse the World.ini for the level in `world_dir`.

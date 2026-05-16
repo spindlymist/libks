@@ -2,7 +2,7 @@ use std::{
     collections::HashSet, ops::RangeBounds, str::FromStr
 };
 
-use libks_ini::Ini;
+use libks_ini::edit::Ini;
 
 use crate::common::parse_xy;
 use super::{
@@ -118,7 +118,12 @@ pub fn check_ini_basic(world_ini: &Ini) -> Option<(KsEdition, IniReason)> {
         "AltDie",
     ];
 
-    if let Some((key, _)) = world.iter().find(|(key, _)| plus_world_props.has(key)) {
+    if let Some((key, _)) = world.iter_props()
+        .find(|(key, _)| {
+            let key_lower = key.to_ascii_lowercase();
+            plus_world_props.has(&key_lower.as_str())
+        })
+    {
         let reason = WorldSectionHasProp(key.to_owned());
         return Some((Plus, reason));
     }
@@ -209,7 +214,7 @@ pub fn check_ini_thorough(world_ini: &Ini) -> Option<(KsEdition, IniReason)> {
             return Some((Plus, reason));
         }
         else if is_object_section(&section_key_lower) {
-            for (key, _) in section.iter() {
+            for (key, _) in section.iter_props() {
                 let lower_key = key.to_ascii_lowercase();
                 let lower_key = lower_key.as_str();
 
@@ -224,7 +229,7 @@ pub fn check_ini_thorough(world_ini: &Ini) -> Option<(KsEdition, IniReason)> {
             }
         }
         else if is_screen_section(&section_key_lower) {
-            for (key, value) in section.iter() {
+            for (key, value) in section.iter_props() {
                 let lower_key = key.to_ascii_lowercase();
                 let lower_key = lower_key.as_str();
 
