@@ -374,7 +374,7 @@ impl<'a> Iterator for SectionPropsIter<'a> {
     type Item = (&'a str, &'a str);
 
     fn next(&mut self) -> Option<Self::Item> {
-        for item in self.items.by_ref() {
+        while let Some(item) = self.items.next() {
             let Item::Property(prop) = item else { continue };
             let key = prop.key.to_str(self.source);
             let value = prop.value.to_str(self.source);

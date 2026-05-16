@@ -22,7 +22,7 @@ impl<'a> LogicalSection<'a> {
     }
 
     pub fn key(&self) -> &'a str {
-        self.sections.last()
+        self.sections.first()
             .map(|section| section.key())
             .unwrap_or("")
     }
@@ -52,7 +52,7 @@ impl<'a> LogicalSectionMut<'a> {
     }
 
     pub fn key(&'a self) -> &'a str {
-        self.sections.last()
+        self.sections.first()
             .map(|section| section.key())
             .unwrap_or("")
     }
@@ -155,7 +155,7 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            for item in self.items.by_ref() {
+            while let Some(item) = self.items.next() {
                 let Item::Property(prop) = item else { continue };
                 let key = prop.key.to_str(self.source);
                 let value = prop.value.to_str(self.source);

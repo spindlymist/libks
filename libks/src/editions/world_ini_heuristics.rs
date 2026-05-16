@@ -205,7 +205,7 @@ pub fn check_ini_thorough(world_ini: &Ini) -> Option<(KsEdition, IniReason)> {
     let mut aco_seen = HashSet::new();
     let mut aco_count = 0;
 
-    for section in world_ini.iter_sections() {
+    for section in world_ini.iter_sections_all() {
         let section_key = section.key();
         let section_key_lower = section_key.to_ascii_lowercase();
 

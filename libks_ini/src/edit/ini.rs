@@ -110,24 +110,10 @@ impl Ini {
     }
     
     fn find_sections_mut<K: AsRef<str>>(&mut self, key: K) -> Vec<SectionWriter<'_>> {
-        let Some(indices) = self.section_map.get(key) else {
-            return Vec::new();
-        };
-        
-        let mut sections = Vec::with_capacity(indices.len());
-        let mut left;
-        let mut right = self.sections.as_mut_slice();
-        let mut right_start_index = 0;
-
-        for i in indices {
-            let borrow_at = i - right_start_index;
-            let split_at = borrow_at + 1;
-            (left, right) = right.split_at_mut(split_at);
-            right_start_index += split_at;
-            sections.push(SectionWriter::new(&mut left[borrow_at], &self.source));
+        match self.section_map.get(key) {
+            Some(indices) => make_writers(&self.source, &mut self.sections, indices),
+            None => Vec::new()
         }
-
-        sections
     }
     
     pub fn has_section<K: AsRef<str>>(&self, key: K) -> bool {
@@ -240,15 +226,40 @@ impl Ini {
         self.section_map.clear();
     }
     
-    pub fn iter_sections(&self) -> impl Iterator<Item = SectionReader<'_>> {
+    pub fn iter_sections(&self) -> IniSectionsIter<'_> {
+        IniSectionsIter::from(self)
+    }
+    
+    pub fn iter_sections_mut(&mut self) -> IniSectionsIterMut<'_> {
+        IniSectionsIterMut::from(self)
+    }
+    
+    pub fn iter_sections_all(&self) -> impl Iterator<Item = SectionReader<'_>> {
         self.sections.iter()
             .map(|section| SectionReader::new(section, &self.source))
     }
     
-    pub fn iter_sections_mut(&mut self) -> impl Iterator<Item = SectionWriter<'_>> {
+    pub fn iter_sections_all_mut(&mut self) -> impl Iterator<Item = SectionWriter<'_>> {
         self.sections.iter_mut()
             .map(|section| SectionWriter::new(section, &self.source))
     }
+}
+
+fn make_writers<'a, 'b>(source: &'a str, sections: &'a mut [Section], indices: &'b [usize]) -> Vec<SectionWriter<'a>> {
+    let mut writers = Vec::with_capacity(indices.len());
+    let mut left;
+    let mut right = sections;
+    let mut right_start_at = 0;
+
+    for i in indices {
+        let borrow_at = i - right_start_at;
+        let split_at = borrow_at + 1;
+        (left, right) = right.split_at_mut(split_at);
+        right_start_at += split_at;
+        writers.push(SectionWriter::new(&mut left[borrow_at], source));
+    }
+    
+    writers
 }
 
 impl<'a> From<&'a str> for Ini {
@@ -268,10 +279,78 @@ impl fmt::Display for Ini {
         for item in self.global_section.iter_items() {
             item.with_source(&self.source).fmt(f)?;
         }
-        for section in self.iter_sections() {
+        for section in self.iter_sections_all() {
             section.fmt(f)?;
         }
         Ok(())
+    }
+}
+
+pub struct IniSectionsIter<'a> {
+    iter: std::collections::hash_map::Values<'a, String, Vec<usize>>,
+    sections: &'a [Section],
+    source: &'a str,
+}
+
+impl<'a> From<&'a Ini> for IniSectionsIter<'a> {
+    fn from(ini: &'a Ini) -> Self {
+        Self {
+            iter: ini.section_map.map.values(),
+            sections: &ini.sections,
+            source: &ini.source,
+        }
+    }
+}
+
+impl<'a> Iterator for IniSectionsIter<'a> {
+    type Item = LogicalSection<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(indices) = self.iter.next() {
+            let sections: Vec<_> = indices.iter()
+                .map(|&i| SectionReader::new(&self.sections[i], self.source))
+                .collect();
+            return Some(LogicalSection::new(sections));
+        }
+        None
+    }
+}
+
+pub struct IniSectionsIterMut<'a> {
+    iter: std::collections::hash_map::Values<'a, String, Vec<usize>>,
+    sections: &'a mut [Section],
+    source: &'a str,
+}
+
+impl<'a> From<&'a mut Ini> for IniSectionsIterMut<'a> {
+    fn from(ini: &'a mut Ini) -> Self {
+        Self {
+            iter: ini.section_map.map.values(),
+            sections: &mut ini.sections,
+            source: &ini.source,
+        }
+    }
+}
+
+impl<'a> Iterator for IniSectionsIterMut<'a> {
+    type Item = LogicalSectionMut<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(indices) = self.iter.next() {
+            let mut writers = Vec::with_capacity(indices.len());
+            for &i in indices {
+                // SAFETY: the slices of indices yielded by the section map are mutually exclusive, so this iterator
+                // will never yield more than one mut reference to each section. The borrow checker doesn't undestand
+                // this, so we have to resort to unsafe pointer manipulation here.
+                let section = unsafe {
+                    let section_ptr = &mut self.sections[i] as *mut Section;
+                    &mut *(section_ptr)
+                };
+                writers.push(SectionWriter::new(section, self.source));
+            }
+            return Some(LogicalSectionMut::new(writers));
+        }
+        None
     }
 }
 
@@ -444,7 +523,7 @@ Prop 4=Section 1/Prop 4
             let mut ini = ini.clone();
             ini.insert_section(0, "secTION 0");
             
-            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let actual_sections = ini.iter_sections_all().map(|section| section.key());
             let expected_sections = [
                 "secTION 0",
                 "Section 0",
@@ -467,7 +546,7 @@ Prop 4=Section 1/Prop 4
             let mut ini = ini.clone();
             ini.insert_section(5, "Section 3");
             
-            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let actual_sections = ini.iter_sections_all().map(|section| section.key());
             let expected_sections = [
                 "Section 0",
                 "Section 1",
@@ -496,7 +575,7 @@ Prop 4=Section 1/Prop 4
             let mut ini = ini.clone();
             ini.append_section("secTION 0");
             
-            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let actual_sections = ini.iter_sections_all().map(|section| section.key());
             let expected_sections = [
                 "Section 0",
                 "Section 1",
@@ -519,7 +598,7 @@ Prop 4=Section 1/Prop 4
             let mut ini = ini.clone();
             ini.append_section("Section 3");
             
-            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let actual_sections = ini.iter_sections_all().map(|section| section.key());
             let expected_sections = [
                 "Section 0",
                 "Section 1",
@@ -548,7 +627,7 @@ Prop 4=Section 1/Prop 4
             let mut ini = ini.clone();
             ini.remove_section_at(0);
             
-            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let actual_sections = ini.iter_sections_all().map(|section| section.key());
             let expected_sections = [
                 "Section 1",
                 "Section 2",
@@ -569,7 +648,7 @@ Prop 4=Section 1/Prop 4
             let mut ini = ini.clone();
             ini.remove_section_at(5);
             
-            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let actual_sections = ini.iter_sections_all().map(|section| section.key());
             let expected_sections = [
                 "Section 0",
                 "Section 1",
@@ -597,7 +676,7 @@ Prop 4=Section 1/Prop 4
             let indices = ini.remove_sections("secTION 0");
             assert_eq!(indices, [0, 3, 6]);
             
-            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let actual_sections = ini.iter_sections_all().map(|section| section.key());
             let expected_sections = [
                 "Section 1",
                 "Section 2",
@@ -618,8 +697,8 @@ Prop 4=Section 1/Prop 4
             let indices = ini_modified.remove_sections("Section 3");
             assert!(indices.is_empty());
             
-            let actual_sections = ini_modified.iter_sections().map(|section| section.key());
-            let expected_sections = ini_modified.iter_sections().map(|section| section.key());
+            let actual_sections = ini_modified.iter_sections_all().map(|section| section.key());
+            let expected_sections = ini_modified.iter_sections_all().map(|section| section.key());
             assert_eq_iter!(actual_sections, expected_sections);
             
             assert_eq!(ini_modified.section_map, ini.section_map);
@@ -634,7 +713,7 @@ Prop 4=Section 1/Prop 4
             let mut ini = ini.clone();
             ini.rename_section_at(0, "secTION 1");
             
-            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let actual_sections = ini.iter_sections_all().map(|section| section.key());
             let expected_sections = [
                 "secTION 1",
                 "Section 1",
@@ -656,7 +735,7 @@ Prop 4=Section 1/Prop 4
             let mut ini = ini.clone();
             ini.rename_section_at(5, "Section 3");
             
-            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let actual_sections = ini.iter_sections_all().map(|section| section.key());
             let expected_sections = [
                 "Section 0",
                 "Section 1",
@@ -684,7 +763,7 @@ Prop 4=Section 1/Prop 4
             let mut ini = ini.clone();
             ini.rename_sections("secTION 0", "secTION 1");
             
-            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let actual_sections = ini.iter_sections_all().map(|section| section.key());
             let expected_sections = [
                 "secTION 1",
                 "Section 1",
@@ -706,7 +785,7 @@ Prop 4=Section 1/Prop 4
             let mut ini = ini.clone();
             ini.rename_sections("secTION 0", "Section 3");
             
-            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let actual_sections = ini.iter_sections_all().map(|section| section.key());
             let expected_sections = [
                 "Section 3",
                 "Section 1",
@@ -728,7 +807,7 @@ Prop 4=Section 1/Prop 4
             let mut ini = ini.clone();
             ini.rename_section_at(5, "Section 3");
             
-            let actual_sections = ini.iter_sections().map(|section| section.key());
+            let actual_sections = ini.iter_sections_all().map(|section| section.key());
             let expected_sections = [
                 "Section 0",
                 "Section 1",
@@ -764,17 +843,14 @@ Prop 4=Section 1/Prop 4
         const SOURCE: &'static str = before!("duplicates.ini");
         let ini = Ini::parse(SOURCE);
         
-        let actual_sections = ini.iter_sections().map(|section| section.key());
+        let mut actual_sections: Vec<_> = ini.iter_sections()
+            .map(|section| section.key())
+            .collect();
+        actual_sections.sort();
         let expected_sections = [
             "Section 0",
             "Section 1",
             "Section 2",
-            "SECTION 0",
-            "SECTION 1",
-            "SECTION 2",
-            "section 0",
-            "section 1",
-            "section 2",
         ];
         assert_eq_iter!(actual_sections, expected_sections);
     }
@@ -784,18 +860,14 @@ Prop 4=Section 1/Prop 4
         const SOURCE: &'static str = before!("duplicates.ini");
         let mut ini = Ini::parse(SOURCE);
         
-        let actual_sections = ini.iter_sections_mut()
-            .map(|section| section.key().to_owned());
+        let mut actual_sections: Vec<_> = ini.iter_sections_mut()
+            .map(|section| section.key().to_owned())
+            .collect();
+        actual_sections.sort();
         let expected_sections = [
             "Section 0",
             "Section 1",
             "Section 2",
-            "SECTION 0",
-            "SECTION 1",
-            "SECTION 2",
-            "section 0",
-            "section 1",
-            "section 2",
         ];
         assert_eq_iter!(actual_sections, expected_sections);
     }
