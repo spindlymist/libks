@@ -5,16 +5,16 @@ use crate::item::Item;
 use super::section::{SectionReader, SectionWriter};
 
 #[derive(Debug)]
-pub struct VirtualSection<'a> {
+pub struct LogicalSection<'a> {
     sections: Vec<SectionReader<'a>>,
 }
 
 #[derive(Debug)]
-pub struct VirtualSectionMut<'a> {
+pub struct LogicalSectionMut<'a> {
     sections: Vec<SectionWriter<'a>>,
 }
 
-impl<'a> VirtualSection<'a> {
+impl<'a> LogicalSection<'a> {
     pub fn new(sections: Vec<SectionReader<'a>>) -> Self {
         Self {
             sections,
@@ -39,12 +39,12 @@ impl<'a> VirtualSection<'a> {
             .find_map(|section| section.get(key.as_ref()))
     }
 
-    pub fn iter_props(&'a self) -> VirtualSectionPropsIter<'a, SectionReader<'a>> {
-        VirtualSectionPropsIter::from(self)
+    pub fn iter_props(&'a self) -> LogicalSectionPropsIter<'a, SectionReader<'a>> {
+        LogicalSectionPropsIter::from(self)
     }
 }
 
-impl<'a> VirtualSectionMut<'a> {
+impl<'a> LogicalSectionMut<'a> {
     pub fn new(sections: Vec<SectionWriter<'a>>) -> Self {
         Self {
             sections,
@@ -91,13 +91,13 @@ impl<'a> VirtualSectionMut<'a> {
         }
     }
 
-    pub fn iter_props(&'a self) -> VirtualSectionPropsIter<'a, SectionWriter<'a>> {
-        VirtualSectionPropsIter::from(self)
+    pub fn iter_props(&'a self) -> LogicalSectionPropsIter<'a, SectionWriter<'a>> {
+        LogicalSectionPropsIter::from(self)
     }
 }
 
 #[allow(private_bounds)]
-pub struct VirtualSectionPropsIter<'a, I>
+pub struct LogicalSectionPropsIter<'a, I>
 where
     I: IterItems
 {
@@ -107,8 +107,8 @@ where
     keys_seen: HashSet<String>,
 }
 
-impl<'a> From<&'a VirtualSection<'a>> for VirtualSectionPropsIter<'a, SectionReader<'a>> {
-    fn from(v_section: &'a VirtualSection<'a>) -> Self {
+impl<'a> From<&'a LogicalSection<'a>> for LogicalSectionPropsIter<'a, SectionReader<'a>> {
+    fn from(v_section: &'a LogicalSection<'a>) -> Self {
         let mut sections = v_section.sections.iter().rev();
         match sections.next() {
             Some(section) => Self {
@@ -127,8 +127,8 @@ impl<'a> From<&'a VirtualSection<'a>> for VirtualSectionPropsIter<'a, SectionRea
     }
 }
 
-impl<'a> From<&'a VirtualSectionMut<'a>> for VirtualSectionPropsIter<'a, SectionWriter<'a>> {
-    fn from(v_section: &'a VirtualSectionMut<'a>) -> Self {
+impl<'a> From<&'a LogicalSectionMut<'a>> for LogicalSectionPropsIter<'a, SectionWriter<'a>> {
+    fn from(v_section: &'a LogicalSectionMut<'a>) -> Self {
         let mut sections = v_section.sections.iter().rev();
         match sections.next() {
             Some(section) => Self {
@@ -147,7 +147,7 @@ impl<'a> From<&'a VirtualSectionMut<'a>> for VirtualSectionPropsIter<'a, Section
     }
 }
 
-impl<'a, I> Iterator for VirtualSectionPropsIter<'a, I>
+impl<'a, I> Iterator for LogicalSectionPropsIter<'a, I>
 where
     I: IterItems
 {
@@ -196,7 +196,7 @@ mod tests {
     use crate::edit::Ini;
     
     #[test]
-    fn virtual_section_has_works() {
+    fn logical_section_has_works() {
         const SOURCE: &'static str = before!("duplicates.ini");
         let ini = Ini::from(SOURCE);
 
@@ -222,7 +222,7 @@ mod tests {
     }
     
     #[test]
-    fn virtual_section_mut_has_works() {
+    fn logical_section_mut_has_works() {
         const SOURCE: &'static str = before!("duplicates.ini");
         let mut ini = Ini::from(SOURCE);
 
@@ -248,7 +248,7 @@ mod tests {
     }
     
     #[test]
-    fn virtual_section_get_works() {
+    fn logical_section_get_works() {
         const SOURCE: &'static str = before!("duplicates.ini");
         let ini = Ini::from(SOURCE);
 
@@ -274,7 +274,7 @@ mod tests {
     }
     
     #[test]
-    fn virtual_section_mut_get_works() {
+    fn logical_section_mut_get_works() {
         const SOURCE: &'static str = before!("duplicates.ini");
         let mut ini = Ini::from(SOURCE);
 
@@ -300,7 +300,7 @@ mod tests {
     }
     
     #[test]
-    fn virtual_section_mut_set_works() {
+    fn logical_section_mut_set_works() {
         const SOURCE: &'static str = before!("duplicates.ini");
         let mut ini = Ini::from(SOURCE);
 
@@ -324,11 +324,11 @@ mod tests {
         section.set("Prop 2", "Section 2/Prop 2/Value X");
         section.set("Prop 3", "Section 2/Prop 3/Value X");
         
-        assert_eq!(ini.to_string(), after!("virtual_section_mut_set_works.ini"));
+        assert_eq!(ini.to_string(), after!("logical_section_mut_set_works.ini"));
     }
     
     #[test]
-    fn virtual_section_mut_unset_works() {
+    fn logical_section_mut_unset_works() {
         const SOURCE: &'static str = before!("duplicates.ini");
         let mut ini = Ini::from(SOURCE);
 
@@ -341,11 +341,11 @@ mod tests {
         let mut section = ini.section_mut("Section 2").unwrap();
         section.unset("Prop 0");
         
-        assert_eq!(ini.to_string(), after!("virtual_section_mut_unset_works.ini"));
+        assert_eq!(ini.to_string(), after!("logical_section_mut_unset_works.ini"));
     }
     
     #[test]
-    fn virtual_section_iter_props_works() {
+    fn logical_section_iter_props_works() {
         const SOURCE: &'static str = before!("duplicates.ini");
         let ini = Ini::from(SOURCE);
         
@@ -380,7 +380,7 @@ mod tests {
     }
     
     #[test]
-    fn virtual_section_mut_iter_props_works() {
+    fn logical_section_mut_iter_props_works() {
         const SOURCE: &'static str = before!("duplicates.ini");
         let mut ini = Ini::from(SOURCE);
         

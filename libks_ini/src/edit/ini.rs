@@ -6,7 +6,7 @@ use crate::{
         SectionReader,
         SectionWriter,
         section_map::SectionMap,
-        virtual_section::{VirtualSection, VirtualSectionMut},
+        logical_section::{LogicalSection, LogicalSectionMut},
     },
     item::Item,
     span::Span,
@@ -86,7 +86,7 @@ impl Ini {
         }
     }
     
-    pub fn sections<K: AsRef<str>>(&self, key: K) -> Vec<SectionReader<'_>> {
+    fn find_sections<K: AsRef<str>>(&self, key: K) -> Vec<SectionReader<'_>> {
         if self.section_map.is_dirty {
             self.sections.iter()
                 .filter(|section| {
@@ -106,7 +106,7 @@ impl Ini {
         }
     }
     
-    pub fn sections_mut<K: AsRef<str>>(&mut self, key: K) -> Vec<SectionWriter<'_>> {
+    fn find_sections_mut<K: AsRef<str>>(&mut self, key: K) -> Vec<SectionWriter<'_>> {
         if self.section_map.is_dirty {
             self.sections.iter_mut()
                 .filter(|section| {
@@ -160,28 +160,28 @@ impl Ini {
         Some(SectionWriter::new(section, &self.source))
     }
     
-    pub fn section<K>(&self, key: K) -> Option<VirtualSection<'_>>
+    pub fn section<K>(&self, key: K) -> Option<LogicalSection<'_>>
     where
         K: AsRef<str> + Into<String>
     {
-        let sections = self.sections(key);
+        let sections = self.find_sections(key);
         if sections.is_empty() {
             None
         }
         else {
-            Some(VirtualSection::new(sections))
+            Some(LogicalSection::new(sections))
         }
     }
     
-    pub fn section_mut<K>(&mut self, key: K) -> Option<VirtualSectionMut<'_>>
+    pub fn section_mut<K>(&mut self, key: K) -> Option<LogicalSectionMut<'_>>
     where
         K: AsRef<str> + Into<String>
     {
-        let sections = self.sections_mut(key);
+        let sections = self.find_sections_mut(key);
         if sections.is_empty() {
             return None;
         }
-        Some(VirtualSectionMut::new(sections))
+        Some(LogicalSectionMut::new(sections))
     }
     
     pub fn insert_section<K: Into<String>>(&mut self, index: usize, key: K) -> SectionWriter<'_> {
