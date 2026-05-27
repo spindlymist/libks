@@ -604,6 +604,68 @@ error'd
     }
     
     #[test]
+    fn section_writer_set_all_works() {
+        let section = parse_section(SOURCE);
+        // Update an existing prop
+        {
+            let mut section = section.clone();
+            let mut writer = SectionWriter::new(&mut section, SOURCE);
+            writer.set_all("Prop 0", "Prop 0/Value X");
+            let expected = [
+                comment!(" First set"),
+                prop!("Prop 0" => "Prop 0/Value X"),
+                prop!("Prop 1" => "Prop 1/Value 0"),
+                prop!("Prop 2" => "Prop 2/Value 0"),
+                blank!(),
+                comment!(" Second set"),
+                prop!("PROP 0" => "Prop 0/Value X"),
+                prop!("PROP 1" => "Prop 1/Value 1"),
+                prop!("PROP 2" => "Prop 2/Value 1"),
+                blank!(),
+                comment!(" Third set"),
+                prop!("prop 0" => "Prop 0/Value X"),
+                prop!("prop 1" => "Prop 1/Value 2"),
+                prop!("prop 2" => "Prop 2/Value 2"),
+                blank!(),
+                error!("error'd"),
+                blank!("", end=LineEnding::None),
+            ];
+            let actual = section.items.into_iter()
+                .map(|item| item.into_owned(SOURCE));
+            assert_eq_iter!(actual, expected);
+        }
+        // Insert a new prop
+        {
+            let mut section = section.clone();
+            let mut writer = SectionWriter::new(&mut section, SOURCE);
+            writer.set_all("Prop 3", "Prop 3/Value X");
+            let expected = [
+                comment!(" First set"),
+                prop!("Prop 0" => "Prop 0/Value 0"),
+                prop!("Prop 1" => "Prop 1/Value 0"),
+                prop!("Prop 2" => "Prop 2/Value 0"),
+                blank!(),
+                comment!(" Second set"),
+                prop!("PROP 0" => "Prop 0/Value 1"),
+                prop!("PROP 1" => "Prop 1/Value 1"),
+                prop!("PROP 2" => "Prop 2/Value 1"),
+                blank!(),
+                comment!(" Third set"),
+                prop!("prop 0" => "Prop 0/Value 2"),
+                prop!("prop 1" => "Prop 1/Value 2"),
+                prop!("prop 2" => "Prop 2/Value 2"),
+                blank!(),
+                error!("error'd"),
+                prop!("Prop 3" => "Prop 3/Value X"),
+                blank!("", end=LineEnding::None),
+            ];
+            let actual = section.items.into_iter()
+                .map(|item| item.into_owned(SOURCE));
+            assert_eq_iter!(actual, expected);
+        }
+    }
+    
+    #[test]
     fn section_writer_replace_works() {
         let section = parse_section(SOURCE);
         // Replace an existing prop
@@ -642,6 +704,52 @@ error'd
                 .map(|item| item.into_owned(SOURCE));
             let mut writer = SectionWriter::new(&mut section, SOURCE);
             let did_replace = writer.replace("Prop 3", "Prop 3/Value X");
+            let actual = section.items.into_iter()
+                .map(|item| item.into_owned(SOURCE));
+            assert!(!did_replace);
+            assert_eq_iter!(actual, expected);
+        }
+    }
+    
+    #[test]
+    fn section_writer_replace_all_works() {
+        let section = parse_section(SOURCE);
+        // Replace an existing prop
+        {
+            let mut section = section.clone();
+            let mut writer = SectionWriter::new(&mut section, SOURCE);
+            let did_replace = writer.replace_all("Prop 0", "Prop 0/Value X");
+            let expected = [
+                comment!(" First set"),
+                prop!("Prop 0" => "Prop 0/Value X"),
+                prop!("Prop 1" => "Prop 1/Value 0"),
+                prop!("Prop 2" => "Prop 2/Value 0"),
+                blank!(),
+                comment!(" Second set"),
+                prop!("PROP 0" => "Prop 0/Value X"),
+                prop!("PROP 1" => "Prop 1/Value 1"),
+                prop!("PROP 2" => "Prop 2/Value 1"),
+                blank!(),
+                comment!(" Third set"),
+                prop!("prop 0" => "Prop 0/Value X"),
+                prop!("prop 1" => "Prop 1/Value 2"),
+                prop!("prop 2" => "Prop 2/Value 2"),
+                blank!(),
+                error!("error'd"),
+                blank!("", end=LineEnding::None),
+            ];
+            let actual = section.items.into_iter()
+                .map(|item| item.into_owned(SOURCE));
+            assert!(did_replace);
+            assert_eq_iter!(actual, expected);
+        }
+        // Replace a non-existent prop
+        {
+            let mut section = section.clone();
+            let expected = section.items.clone().into_iter()
+                .map(|item| item.into_owned(SOURCE));
+            let mut writer = SectionWriter::new(&mut section, SOURCE);
+            let did_replace = writer.replace_all("Prop 3", "Prop 3/Value X");
             let actual = section.items.into_iter()
                 .map(|item| item.into_owned(SOURCE));
             assert!(!did_replace);

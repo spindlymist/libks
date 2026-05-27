@@ -343,6 +343,34 @@ mod tests {
     }
     
     #[test]
+    fn logical_section_mut_set_all_works() {
+        const SOURCE: &'static str = before!("duplicates.ini");
+        let mut ini = Ini::from(SOURCE);
+
+        let mut section = ini.section_mut("Section 0").unwrap();
+        section.set_all("Prop 0", "Section 0/Prop 0/Value A");
+        section.set_all("Prop 1", "Section 0/Prop 1/Value B");
+        section.set_all("Prop 2", "Section 0/Prop 2/Value C");
+        section.set_all("Prop 3", "Section 0/Prop 3/Value D");
+        
+        let mut section = ini.section_mut("Section 1").unwrap();
+        section.set_all("Prop 0", "Section 1/Prop 0/Value A");
+        section.set_all("Prop 1", "Section 1/Prop 1/Value B");
+        section.set_all("Prop 2", "Section 1/Prop 2/Value C");
+        section.set_all("Prop 3", "Section 1/Prop 3/Value D");
+        section.set_all("Prop 4", "Section 1/Prop 4/Value E");
+        section.set_all("Prop 5", "Section 1/Prop 5/Value F");
+        
+        let mut section = ini.section_mut("Section 2").unwrap();
+        section.set_all("Prop 0", "Section 2/Prop 0/Value A");
+        section.set_all("Prop 1", "Section 2/Prop 1/Value B");
+        section.set_all("Prop 2", "Section 2/Prop 2/Value C");
+        section.set_all("Prop 3", "Section 2/Prop 3/Value D");
+        
+        assert_eq!(ini.to_string(), after!("logical_section_mut_set_all_works.ini"));
+    }
+    
+    #[test]
     fn logical_section_mut_unset_works() {
         const SOURCE: &'static str = before!("duplicates.ini");
         let mut ini = Ini::from(SOURCE);
