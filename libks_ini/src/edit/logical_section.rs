@@ -4,7 +4,7 @@ use crate::item::Item;
 
 use super::section::{SectionReader, SectionWriter};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LogicalSection<'a> {
     pub(crate) sections: Vec<SectionReader<'a>>,
 }
