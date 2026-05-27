@@ -81,7 +81,22 @@ impl<'a> LogicalSectionMut<'a> {
             }
         }
         if let Some(section) = self.sections.last_mut() {
-            section.set(key, value);
+            section.append(key, value);
+        }
+    }
+    
+    pub fn set_all<K, V>(&mut self, key: K, value: V)
+    where
+        K: AsRef<str> + Into<String>,
+        V: Into<String>
+    {
+        let value = value.into();
+        let mut found = false;
+        for section in self.sections.iter_mut() {
+            found |= section.replace_all(key.as_ref(), &value);
+        }
+        if !found && let Some(section) = self.sections.last_mut() {
+            section.append(key, value);
         }
     }
 

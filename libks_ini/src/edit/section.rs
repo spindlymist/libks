@@ -255,30 +255,59 @@ impl<'a> SectionWriter<'a> {
             .map(|prop| prop.value.to_str(self.source))
     }
     
+    pub fn append<K, V>(&mut self, key: K, value: V)
+    where
+        K: AsRef<str> + Into<String>,
+        V: Into<String>
+    {
+        let index = self.find_index_for_append();
+        let item = PropertyItem {
+            key: Span::String(key.into()),
+            value: Span::String(value.into()),
+            padding: Padding4::default(),
+            line_ending: self.section.header.line_ending,
+        };
+        self.section.items.insert(index, item.into());
+    }
+    
     pub fn set<K, V>(&mut self, key: K, value: V)
     where
         K: AsRef<str> + Into<String>,
-        V: Into<String>,
+        V: Into<String>
     {
         match self.find_prop_mut(key.as_ref()) {
             Some(prop) => prop.value = Span::String(value.into()),
-            None => {
-                let index = self.find_index_for_append();
-                let item = PropertyItem {
-                    key: Span::String(key.into()),
-                    value: Span::String(value.into()),
-                    padding: Padding4::default(),
-                    line_ending: self.section.header.line_ending,
-                };
-                self.section.items.insert(index, item.into());
+            None => self.append(key, value),
+        }
+    }
+    
+    pub fn set_all<K, V>(&mut self, key: K, value: V)
+    where
+        K: AsRef<str> + Into<String>,
+        V: Into<String>
+    {
+        let mut found = false;
+        let value = value.into();
+        
+        for item in self.section.items.iter_mut() {
+            let Item::Property(prop) = item else { continue };
+            if prop.key.to_str(self.source)
+                .eq_ignore_ascii_case(key.as_ref())
+            {
+                found = true;
+                prop.value = Span::String(value.clone());
             }
+        }
+        
+        if !found {
+            self.append(key, value);
         }
     }
     
     pub fn replace<K, V>(&mut self, key: K, value: V) -> bool
     where
         K: AsRef<str>,
-        V: Into<String>,
+        V: Into<String>
     {
         match self.find_prop_mut(key.as_ref()) {
             Some(prop) => {
@@ -287,6 +316,27 @@ impl<'a> SectionWriter<'a> {
             }
             None => false
         }
+    }
+    
+    pub fn replace_all<K, V>(&mut self, key: K, value: V) -> bool
+    where
+        K: AsRef<str>,
+        V: Into<String>
+    {
+        let mut found = false;
+        let value = value.into();
+        
+        for item in self.section.items.iter_mut() {
+            let Item::Property(prop) = item else { continue };
+            if prop.key.to_str(self.source)
+                .eq_ignore_ascii_case(key.as_ref())
+            {
+                found = true;
+                prop.value = Span::String(value.clone());
+            }
+        }
+        
+        found
     }
     
     pub fn unset<K: AsRef<str>>(&mut self, key: K) {
