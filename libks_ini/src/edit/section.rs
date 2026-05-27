@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 use std::fmt;
-use std::ops::{Deref, DerefMut};
 
 use crate::{
     item::{Item, PropertyItem, SectionItem},
@@ -10,12 +9,11 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct Section {
-    pub(crate) header: SectionItem,
-    pub(crate) items: Vec<Item>,
-    pub(crate) line_ending: LineEnding,
+    pub header: SectionItem,
+    pub items: Vec<Item>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct SectionReader<'a> {
     pub(crate) section: &'a Section,
     pub(crate) source: &'a str,
@@ -36,28 +34,14 @@ impl Section {
                 line_ending,
             },
             items: Vec::new(),
-            line_ending,
         }
     }
     
-    pub fn from_header(header: SectionItem) -> Self {
-        let line_ending = header.line_ending;
-        Self {
-            header,
-            items: Vec::new(),
-            line_ending,
-        }
+    pub fn set_key<K: Into<String>>(&mut self, key: K) {
+        self.header.key = Span::String(key.into());
     }
     
-    pub fn header(&self) -> &SectionItem {
-        &self.header
-    }
-    
-    pub fn header_set_line_ending(&mut self, line_ending: LineEnding) {
-        self.header.line_ending = line_ending;
-    }
-    
-    pub fn header_set_padding<S1, S2>(&mut self, before: S1, after: S2)
+    pub fn set_header_padding<S1, S2>(&mut self, before: S1, after: S2)
     where
         S1: Into<String>,
         S2: Into<String>,
@@ -65,52 +49,14 @@ impl Section {
         self.header.padding.0 = Span::String(before.into());
         self.header.padding.1 = Span::String(after.into());
     }
-    
-    pub fn items_len(&self) -> usize {
-        self.items.len()
-    }
-    
-    pub fn get_item(&self, index: usize) -> Option<&Item> {
-        self.items.get(index)
-    }
-    
-    pub fn get_item_mut(&mut self, index: usize) -> Option<&mut Item> {
-        self.items.get_mut(index)
-    }
-    
-    pub fn append_item(&mut self, item: Item) {
-        self.items.push(item);
-    }
-    
-    pub fn insert_item(&mut self, index: usize, item: Item) {
-        self.items.insert(index, item);
-    }
-    
-    pub fn extend_items<T>(&mut self, items: T)
-    where
-        T: IntoIterator<Item = Item>
-    {
-        self.items.extend(items);
-    }
-    
-    pub fn remove_item(&mut self, index: usize) -> Item {
-        self.items.remove(index)
-    }
-    
-    pub fn clear_items(&mut self) {
-        self.items.clear()
-    }
-    
-    pub fn iter_items(&self) -> impl Iterator<Item = &Item> {
-        self.items.iter()
-    }
-    
-    pub fn iter_items_mut(&mut self) -> impl Iterator<Item = &mut Item> {
-        self.items.iter_mut()
-    }
-    
-    pub fn into_items(self) -> impl Iterator<Item = Item> {
-        self.items.into_iter()
+}
+
+impl From<SectionItem> for Section {
+    fn from(header: SectionItem) -> Self {
+        Self {
+            header,
+            items: Vec::new(),
+        }
     }
 }
 
@@ -149,8 +95,26 @@ impl<'a> SectionReader<'a> {
         }
     }
     
+    pub fn inner(&self) -> &Section {
+        &self.section
+    }
+    
+    pub fn header(&self) -> &SectionItem {
+        &self.section.header
+    }
+    
     pub fn key(&self) -> &'a str {
         self.section.header.key.to_str(self.source)
+    }
+    
+    pub fn header_padding(&self) -> (&'a str, &'a str) {
+        let before = self.section.header.padding.0.to_str(self.source);
+        let after = self.section.header.padding.1.to_str(self.source);
+        (before, after)
+    }
+    
+    pub fn items(&self) -> &[Item] {
+        &self.section.items
     }
     
     fn find_prop<K: AsRef<str>>(&self, key: K) -> Option<&'a PropertyItem> {
@@ -177,13 +141,9 @@ impl<'a> SectionReader<'a> {
     pub fn iter_props(&self) -> SectionPropsIter<'a> {
         SectionPropsIter::from(self)
     }
-}
-
-impl<'a> Deref for SectionReader<'a> {
-    type Target = Section;
-
-    fn deref(&self) -> &Self::Target {
-        self.section
+    
+    pub fn iter_items(&'a self) -> std::slice::Iter<'a, Item> {
+        self.section.items.iter()
     }
 }
 
@@ -198,8 +158,8 @@ impl<'a> IntoIterator for &'a SectionReader<'a> {
 
 impl<'a> fmt::Display for SectionReader<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.header.with_source(self.source).fmt(f)?;
-        for item in &self.items {
+        self.section.header.with_source(self.source).fmt(f)?;
+        for item in &self.section.items {
             item.with_source(self.source).fmt(f)?;
         }
         Ok(())
@@ -214,12 +174,46 @@ impl<'a> SectionWriter<'a> {
         }
     }
     
-    pub fn key(&self) -> &str {
+    pub fn inner(&self) -> &Section {
+        &self.section
+    }
+    
+    pub fn header(&self) -> &SectionItem {
+        &self.section.header
+    }
+    
+    pub fn key(&'a self) -> &'a str {
         self.section.header.key.to_str(self.source)
     }
     
+    pub fn header_padding(&'a self) -> (&'a str, &'a str) {
+        let before = self.section.header.padding.0.to_str(self.source);
+        let after = self.section.header.padding.1.to_str(self.source);
+        (before, after)
+    }
+    
+    pub fn set_header_padding<S1, S2>(&mut self, before: S1, after: S2)
+    where
+        S1: Into<String>,
+        S2: Into<String>,
+    {
+        self.section.set_header_padding(before, after);
+    }
+
+    pub fn set_header_line_ending(&mut self, line_ending: LineEnding) {
+        self.section.header.line_ending = line_ending;
+    }
+    
+    pub fn items(&self) -> &[Item] {
+        &self.section.items
+    }
+    
+    pub fn items_mut(&mut self) -> &mut Vec<Item> {
+        &mut self.section.items
+    }
+    
     fn find_prop<K: AsRef<str>>(&self, key: K) -> Option<&PropertyItem> {
-        for item in self.items.iter().rev() {
+        for item in self.section.items.iter().rev() {
             let Item::Property(prop) = item else { continue };
             if prop.key.to_str(self.source)
                 .eq_ignore_ascii_case(key.as_ref())
@@ -243,8 +237,8 @@ impl<'a> SectionWriter<'a> {
     }
     
     fn find_index_for_append(&self) -> usize {
-        for i in (0..self.items.len()).rev() {
-            match self.items[i] {
+        for i in (0..self.section.items.len()).rev() {
+            match self.section.items[i] {
                 Item::Blank(_) => continue,
                 _ => return i + 1,
             }
@@ -274,9 +268,9 @@ impl<'a> SectionWriter<'a> {
                     key: Span::String(key.into()),
                     value: Span::String(value.into()),
                     padding: Padding4::default(),
-                    line_ending: self.line_ending,
+                    line_ending: self.section.header.line_ending,
                 };
-                self.items.insert(index, item.into());
+                self.section.items.insert(index, item.into());
             }
         }
     }
@@ -296,12 +290,12 @@ impl<'a> SectionWriter<'a> {
     }
     
     pub fn unset<K: AsRef<str>>(&mut self, key: K) {
-        for i in (0..self.items.len()).rev() {
-            let Item::Property(prop) = &self.items[i] else { continue };
+        for i in (0..self.section.items.len()).rev() {
+            let Item::Property(prop) = &self.section.items[i] else { continue };
             if prop.key.to_str(self.source)
                 .eq_ignore_ascii_case(key.as_ref())
             {
-                self.items.remove(i);
+                self.section.items.remove(i);
             }
         }
     }
@@ -309,19 +303,9 @@ impl<'a> SectionWriter<'a> {
     pub fn iter_props(&'a self) -> SectionPropsIter<'a> {
         SectionPropsIter::from(self)
     }
-}
-
-impl<'a> Deref for SectionWriter<'a> {
-    type Target = Section;
-
-    fn deref(&self) -> &Self::Target {
-        self.section
-    }
-}
-
-impl<'a> DerefMut for SectionWriter<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.section
+    
+    pub fn iter_items(&'a self) -> std::slice::Iter<'a, Item> {
+        self.section.items.iter()
     }
 }
 
@@ -336,8 +320,8 @@ impl<'a> IntoIterator for &'a SectionWriter<'a> {
 
 impl<'a> fmt::Display for SectionWriter<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.header.with_source(self.source).fmt(f)?;
-        for item in &self.items {
+        self.section.header.with_source(self.source).fmt(f)?;
+        for item in &self.section.items {
             item.with_source(self.source).fmt(f)?;
         }
         Ok(())
@@ -421,7 +405,7 @@ error'd
     fn parse_section(source: &str) -> Section {
         let mut parser = Parser::new(source);
         let mut section = match parser.next() {
-            Some(Item::Section(header)) => Section::from_header(header),
+            Some(Item::Section(header)) => Section::from(header),
             _ => panic!("Source must start with section"),
         };
         for item in parser {

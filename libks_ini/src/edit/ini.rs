@@ -54,12 +54,12 @@ impl Ini {
         for item in parser {
             match item {
                 Item::Section(header) => {
-                    let section = Section::from_header(header);
+                    let section = Section::from(header);
                     sections.push(section);
                     let index = sections.len() - 1;
                     current_section = &mut sections[index];
                 }
-                _ => current_section.append_item(item)
+                _ => current_section.items.push(item)
             }
         }
         
@@ -154,25 +154,31 @@ impl Ini {
         Some(LogicalSectionMut::new(sections))
     }
     
-    pub fn insert_section<K: Into<String>>(&mut self, index: usize, key: K) -> SectionWriter<'_> {
-        let key = key.into();
-        self.section_map.update_after_insert(&key, index);
-        
-        let section = Section::new(key, self.line_ending);
+    pub fn insert_section(&mut self, index: usize, section: Section) -> SectionWriter<'_> {
+        let key = section.header.key.to_str(&self.source);
+        self.section_map.update_after_insert(key, index);
         self.sections.insert(index, section);
         
         SectionWriter::new(&mut self.sections[index], &self.source)
     }
     
-    pub fn append_section<K: Into<String>>(&mut self, key: K) -> SectionWriter<'_> {
-        let key = key.into();
-        let index = self.sections.len();
-        self.section_map.update_after_append(&key, index);
-        
+    pub fn insert_new_section<K: Into<String>>(&mut self, index: usize, key: K) -> SectionWriter<'_> {
         let section = Section::new(key, self.line_ending);
+        self.insert_section(index, section)
+    }
+    
+    pub fn append_section(&mut self, section: Section) -> SectionWriter<'_> {
+        let key = section.header.key.to_str(&self.source);
+        let index = self.sections.len();
+        self.section_map.update_after_append(key, index);
         self.sections.push(section);
         
         SectionWriter::new(&mut self.sections[index], &self.source)
+    }
+    
+    pub fn append_new_section<K: Into<String>>(&mut self, key: K) -> SectionWriter<'_> {
+        let section = Section::new(key, self.line_ending);
+        self.append_section(section)
     }
     
     pub fn remove_section_at(&mut self, index: usize) -> Section {
@@ -221,7 +227,7 @@ impl Ini {
     }
     
     pub fn clear(&mut self) {
-        self.global_section.clear_items();
+        self.global_section.items.clear();
         self.sections.clear();
         self.section_map.clear();
     }
@@ -276,7 +282,7 @@ impl From<String> for Ini {
 
 impl fmt::Display for Ini {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for item in self.global_section.iter_items() {
+        for item in &self.global_section.items {
             item.with_source(&self.source).fmt(f)?;
         }
         for section in self.iter_sections_all() {
@@ -516,12 +522,12 @@ Prop 4=Section 1/Prop 4
     }
     
     #[test]
-    fn ini_insert_section_works() {
+    fn ini_insert_new_section_works() {
         const SOURCE: &'static str = before!("duplicates.ini");
         let ini = Ini::parse(SOURCE);
         {
             let mut ini = ini.clone();
-            ini.insert_section(0, "secTION 0");
+            ini.insert_new_section(0, "secTION 0");
             
             let actual_sections = ini.iter_sections_all().map(|section| section.key());
             let expected_sections = [
@@ -544,7 +550,7 @@ Prop 4=Section 1/Prop 4
         }
         {
             let mut ini = ini.clone();
-            ini.insert_section(5, "Section 3");
+            ini.insert_new_section(5, "Section 3");
             
             let actual_sections = ini.iter_sections_all().map(|section| section.key());
             let expected_sections = [
@@ -568,12 +574,12 @@ Prop 4=Section 1/Prop 4
     }
     
     #[test]
-    fn ini_append_section_works() {
+    fn ini_append_new_section_works() {
         const SOURCE: &'static str = before!("duplicates.ini");
         let ini = Ini::parse(SOURCE);
         {
             let mut ini = ini.clone();
-            ini.append_section("secTION 0");
+            ini.append_new_section("secTION 0");
             
             let actual_sections = ini.iter_sections_all().map(|section| section.key());
             let expected_sections = [
@@ -596,7 +602,7 @@ Prop 4=Section 1/Prop 4
         }
         {
             let mut ini = ini.clone();
-            ini.append_section("Section 3");
+            ini.append_new_section("Section 3");
             
             let actual_sections = ini.iter_sections_all().map(|section| section.key());
             let expected_sections = [
@@ -834,7 +840,7 @@ Prop 4=Section 1/Prop 4
         ini.clear();
         
         assert!(ini.sections.is_empty());
-        assert_eq_iter!(ini.global_section.iter_items(), &[]);
+        assert_eq_iter!(&ini.global_section.items, &[]);
         assert_eq_iter!(ini.section_map.ordering().iter(), &[] as &[String]);
     }
     

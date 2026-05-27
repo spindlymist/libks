@@ -166,7 +166,7 @@ mod tests {
     fn load_from_source(source: &str) -> (SectionMap, Vec<Section>) {
         let sections: Vec<_> = Parser::new(source)
             .filter_map(|item| match item {
-                Item::Section(header) => Some(Section::from_header(header)),
+                Item::Section(header) => Some(Section::from(header)),
                 _ => None,
             })
             .collect();
