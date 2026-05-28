@@ -36,3 +36,12 @@ where
 {
     load_ini(world_dir.as_ref().join("World.ini"))
 }
+
+/// Encodes and writes the ini to `path`.
+pub fn write_ini<P: AsRef<Path>>(ini: &Ini, path: P) -> Result<()> {
+    let contents_utf8 = ini.to_string();
+    let (contents_win1252, _, _) = encoding_rs::WINDOWS_1252.encode(&contents_utf8);
+    
+    fs::write(path, contents_win1252)?;
+    Ok(())
+}
