@@ -173,10 +173,6 @@ impl Ini {
         }
     }
 
-    pub fn iter_sections(&self) -> std::slice::Iter<'_, Section> {
-        self.sections.iter()
-    }
-
     pub fn has_in(&self, section_key: &str, prop_key: &str) -> bool {
         self.section(section_key)
             .map_or(false, |section| section.has(prop_key))
@@ -206,6 +202,15 @@ impl Ini {
         if let Some(mut section) = self.section_mut(section_key) {
             section.rename(from_key, to_key);
         }
+    }
+    
+    pub fn iter_sections(&self) -> std::slice::Iter<'_, Section> {
+        self.sections.iter()
+    }
+    
+    pub fn iter_virtual_sections(&self) -> impl Iterator<Item = VirtualSection<'_>> {
+        self.section_index.values()
+            .map(|indices| self.v_section(indices))
     }
 }
 
