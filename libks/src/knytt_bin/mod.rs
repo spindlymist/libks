@@ -10,6 +10,7 @@ pub use unpack::{
     unpack_with_options,
     parse_headers,
     UnpackOptions,
+    KnyttBinHeader
 };
 
 const ENTRY_SIGNATURE: [u8; 2] = [b'N', b'F'];
