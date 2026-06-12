@@ -10,7 +10,7 @@ pub fn trimmed_range_start(s: &str) -> usize {
 pub fn trimmed_range_end(s: &str) -> usize {
     for (i, ch) in s.char_indices().rev() {
         if !ch.is_ascii_whitespace() {    
-            return i + 1;
+            return i + ch.len_utf8();
         }
     }
     0
@@ -33,24 +33,35 @@ mod tests {
     #[test]
     fn trimmed_range_works() {
         let s = "     hello world     ";
-        assert_eq!(trimmed_range(s), (5, 16));
+        let (start, end) = trimmed_range(s);
+        assert_eq!(&s[start..end], "hello world");
     }
 
     #[test]
     fn trimmed_range_works_with_nothing_to_trim() {
         let s = "hello world";
-        assert_eq!(trimmed_range(s), (0, s.len()));
+        let (start, end) = trimmed_range(s);
+        assert_eq!(&s[start..end], "hello world");
     }
 
     #[test]
     fn trimmed_range_works_with_pure_whitespace() {
         let s = "     ";
-        assert_eq!(trimmed_range(s), (s.len(), s.len()));
+        let (start, end) = trimmed_range(s);
+        assert_eq!(&s[start..end], "");
     }
 
     #[test]
     fn trimmed_range_works_with_empty_string() {
         let s = "";
-        assert_eq!(trimmed_range(s), (0, 0));
+        let (start, end) = trimmed_range(s);
+        assert_eq!(&s[start..end], "");
+    }
+    
+    #[test]
+    fn trimmed_range_works_with_multibyte_characters() {
+        let s = "     今日わ     ";
+        let (start, end) = trimmed_range(s);
+        assert_eq!(&s[start..end], "今日わ");
     }
 }
